@@ -1,0 +1,2089 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sistema Comparativo y Resolvedor de Laberintos - Grupo 13</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-current: #240603;
+      --bg-edge: #0B0202;
+      --accent-coral: #FF5733;
+      --accent-warm: #FF7A59;
+      --line-hair: rgba(255, 255, 255, 0.22);
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-current);
+      color: #FFFFFF;
+      font-family: 'Space Grotesk', sans-serif;
+      transition: background-color 0.85s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Tipografía brutalista ultra-condensada estilo ALPHA TANGO */
+    .font-display {
+      font-family: 'Big Shoulders Display', sans-serif;
+      text-transform: uppercase;
+      letter-spacing: -0.02em;
+      line-height: 0.88;
+    }
+
+    /* Fondo radial dinámico de alto contraste (oscurece según densidad técnica) */
+    #dynamicBackdrop {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at 65% 32%, rgba(214, 40, 10, 0.34) 0%, rgba(36, 6, 3, 0.88) 55%, #070101 100%);
+      pointer-events: none;
+      z-index: 0;
+      transition: opacity 0.85s ease, background 0.85s ease;
+    }
+
+    /* Canvas wireframe 3D atenuado para cero interferencia con el texto */
+    #wireframeCanvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 0;
+      transition: opacity 0.85s ease;
+    }
+
+    /* Contenedor de diapositivas (SIN HEADER) */
+    .slides-viewport {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      z-index: 1;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      padding: 2rem 3.2rem 4.6rem 3.2rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(16px);
+      transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+                  visibility 0.5s;
+    }
+
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+      z-index: 2;
+    }
+
+    /* Animaciones escalonadas de entrada al activar diapositiva */
+    .slide .anim-item {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    .slide.active .anim-item {
+      animation: fadeUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .slide.active .delay-1 { animation-delay: 0.08s; }
+    .slide.active .delay-2 { animation-delay: 0.16s; }
+    .slide.active .delay-3 { animation-delay: 0.24s; }
+    .slide.active .delay-4 { animation-delay: 0.32s; }
+
+    @keyframes fadeUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Animación de barras comparativas */
+    .bar-fill {
+      transform-origin: left;
+      transform: scaleX(0);
+      transition: transform 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.25s;
+    }
+    .slide.active .bar-fill {
+      transform: scaleX(1);
+    }
+
+    /* Animación de trazado SVG */
+    .svg-draw {
+      stroke-dasharray: 420;
+      stroke-dashoffset: 420;
+    }
+    .slide.active .svg-draw {
+      animation: drawStroke 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards;
+    }
+    @keyframes drawStroke {
+      to { stroke-dashoffset: 0; }
+    }
+
+    /* Pulso suave en nodos activos */
+    @keyframes pulseNode {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.12); opacity: 0.85; }
+    }
+    .node-pulse {
+      animation: pulseNode 2.2s infinite ease-in-out;
+    }
+
+    /* Líneas divisoras ultrafinas estilo editorial abierto */
+    .hairline-t { border-top: 1px solid var(--line-hair); }
+    .hairline-b { border-bottom: 1px solid var(--line-hair); }
+    .hairline-l { border-left: 1px solid var(--line-hair); }
+
+    /* Ventana flotante oscura de código */
+    .floating-terminal {
+      background: rgba(14, 3, 2, 0.94);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75);
+      border-radius: 6px;
+    }
+
+    .code-font {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Desplazador minimalista en esquina inferior izquierda */
+    .bottom-left-nav {
+      position: fixed;
+      bottom: 1.35rem;
+      left: 3.2rem;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      gap: 1.1rem;
+    }
+
+    .nav-counter {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      letter-spacing: 0.18em;
+      color: #FFFFFF;
+      font-weight: 700;
+    }
+
+    .nav-btn {
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #FFFFFF;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      background: rgba(0, 0, 0, 0.35);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .nav-btn:hover:not(:disabled) {
+      background: #FF5733;
+      color: #FFFFFF;
+      border-color: #FF5733;
+    }
+
+    .nav-btn:disabled {
+      opacity: 0.25;
+      cursor: not-allowed;
+    }
+
+    .dot-indicator {
+      width: 6px;
+      height: 6px;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+
+    .dot-indicator.active {
+      width: 22px;
+      background: #FF5733;
+    }
+
+    /* Botón de Lupa en barra inferior izquierda */
+    .lupa-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      height: 28px;
+      padding: 0 0.65rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: #FFFFFF;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      background: rgba(0, 0, 0, 0.45);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .lupa-toggle-btn:hover,
+    .lupa-toggle-btn.active {
+      background: #FF5733;
+      border-color: #FF5733;
+      color: #FFFFFF;
+    }
+
+    /* Lente Óptico Superpuesto Real (Lupa Vectorial en Vivo) */
+    #magnifierLens {
+      position: fixed;
+      width: 240px;
+      height: 240px;
+      border-radius: 9999px;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 9999;
+      display: none;
+      transform: translate(-50%, -50%);
+      border: 2px solid rgba(255, 255, 255, 0.85);
+      box-shadow:
+        0 24px 60px rgba(0, 0, 0, 0.88),
+        0 0 0 4px rgba(255, 87, 51, 0.35),
+        inset 0 0 28px rgba(255, 255, 255, 0.18);
+      background-color: #090101;
+    }
+
+    #magnifierLens.visible {
+      display: block;
+    }
+
+    /* Reflejo especular de cristal sobre la lupa */
+    #magnifierLens::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 9999px;
+      background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.04) 38%, transparent 65%);
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    #magnifierCloneHost {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      transform-origin: 0 0;
+      pointer-events: none;
+    }
+
+    /* Asegurar que elementos clonados dentro de la lupa sean visibles sin depender de animaciones */
+    #magnifierCloneHost .anim-item {
+      opacity: 1 !important;
+      transform: none !important;
+      animation: none !important;
+    }
+    #magnifierCloneHost .bar-fill {
+      transform: scaleX(1) !important;
+    }
+
+    #magnifierHud {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 30;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      background: rgba(0, 0, 0, 0.82);
+      border: 1px solid rgba(255, 87, 51, 0.7);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      color: #FF7A59;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+
+    body.lupa-active {
+      cursor: crosshair;
+    }
+
+    .custom-scroll {
+      overflow-y: auto;
+      max-height: calc(100vh - 6rem);
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 3px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .maze-cell {
+      transition: all 0.18s ease;
+    }
+
+    /* Resaltado de línea en pseudocódigo interactivo */
+    .pseudo-line {
+      padding: 1px 6px;
+      border-radius: 3px;
+      transition: background 0.25s ease, color 0.25s ease;
+    }
+    .pseudo-line.active-line {
+      background: rgba(255, 87, 51, 0.28);
+      color: #FFFFFF;
+      border-left: 2px solid #FF5733;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Fondo dinámico de alto contraste + Malla Wireframe 3D -->
+  <div id="dynamicBackdrop"></div>
+  <canvas id="wireframeCanvas"></canvas>
+
+  <!-- Lente Óptico Superpuesto (Lupa Interactiva) -->
+  <div id="magnifierLens" aria-hidden="true">
+    <div id="magnifierCloneHost"></div>
+    <div id="magnifierHud">2.2x · RUEDA ZOOM</div>
+  </div>
+
+  <!-- Contenedor Principal de Diapositivas (SIN HEADER SUPERIOR) -->
+  <main class="slides-viewport" id="slidesViewport">
+
+    <!-- ===================================================================== -->
+    <!-- SLIDE 01: PORTADA E INTEGRANTES (PUNTO 01)                            -->
+    <!-- ===================================================================== -->
+    <section class="slide active" data-index="0">
+      <div class="max-w-6xl mx-auto w-full h-full flex flex-col justify-between py-3 custom-scroll">
+        <!-- Encabezado institucional limpio -->
+        <div class="flex flex-wrap items-center justify-between gap-2 hairline-b pb-3.5 text-xs tracking-[0.18em] uppercase text-white/80 anim-item">
+          <span>Universidad Privada del Norte (UPN) · Análisis de Algoritmos y Estrategias de Programación</span>
+          <span class="code-font text-[#FF7A59] font-semibold">Grupo 13 · "Los wasaa" · 30/11/2026</span>
+        </div>
+
+        <!-- Cuerpo Principal: Título a la izquierda, Integrantes Completos a la derecha -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center my-auto py-4">
+          <div class="lg:col-span-7 space-y-6">
+            <div class="inline-flex items-center gap-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-[#FF7A59] anim-item delay-1">
+              <span class="w-2 h-2 rounded-full bg-[#FF5733] node-pulse"></span>
+              <span>Punto 01 · Carátula del Proyecto</span>
+            </div>
+
+            <h1 class="font-display font-black text-6xl sm:text-7xl lg:text-[5.6rem] text-white anim-item delay-1">
+              RESOLVEDOR DE <span class="text-[#FF5733]">LABERINTOS 2D</span>
+            </h1>
+
+            <p class="text-sm sm:text-base text-white/80 max-w-xl leading-relaxed anim-item delay-2">
+              Evaluación comparativa de cinco estrategias de búsqueda (<strong class="text-white">Backtracking</strong>, <strong class="text-white">DFS</strong>, <strong class="text-white">BFS</strong>, <strong class="text-white">Dijkstra</strong> y <strong class="text-white">A*</strong>) para hallar la ruta óptima en matrices bidimensionales.
+            </p>
+
+            <!-- Datos del curso y CTA -->
+            <div class="pt-2 flex flex-wrap items-center gap-6 anim-item delay-3">
+              <button onclick="changeSlide(1)" class="inline-flex items-center bg-[#FF5733] text-white font-bold text-xs tracking-[0.16em] uppercase px-6 py-3.5 hover:bg-[#ff6b4a] transition cursor-pointer">
+                <span>Iniciar Exposición</span>
+                <span class="ml-4 pl-3 border-l border-white/30 font-mono text-sm">→</span>
+              </button>
+              <div class="text-xs text-white/80 space-y-0.5">
+                <div>Docente: <strong class="text-white">Mg. Giancarlo Daniel Calderon Pereda</strong></div>
+                <div class="code-font text-[11px] text-white/65">Clase / Sección: 21527 · Caso 01</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Columna Derecha: Lista limpia de Integrantes (Nombres Completos, sin porcentajes) -->
+          <div class="lg:col-span-5 lg:hairline-l lg:pl-9 space-y-4 anim-item delay-2">
+            <div class="flex items-center justify-between hairline-b pb-2.5">
+              <span class="text-xs uppercase tracking-[0.2em] text-[#FF7A59] font-bold">Integrantes del Equipo</span>
+              <span class="code-font text-[11px] text-white/60">05 miembros</span>
+            </div>
+
+            <ol class="space-y-3">
+              <li class="flex items-center gap-3.5 py-1.5 border-b border-white/10">
+                <span class="code-font text-xs font-bold text-[#FF5733] w-5">01</span>
+                <span class="text-sm sm:text-base font-medium text-white">Jefferson Gonzalo Núñez Martinez</span>
+              </li>
+              <li class="flex items-center gap-3.5 py-1.5 border-b border-white/10">
+                <span class="code-font text-xs font-bold text-[#FF5733] w-5">02</span>
+                <span class="text-sm sm:text-base font-medium text-white">Derian Jacsel Carrasco Canayo</span>
+              </li>
+              <li class="flex items-center gap-3.5 py-1.5 border-b border-white/10">
+                <span class="code-font text-xs font-bold text-[#FF5733] w-5">03</span>
+                <span class="text-sm sm:text-base font-medium text-white">Anderson Jhair Timana Damaso</span>
+              </li>
+              <li class="flex items-center gap-3.5 py-1.5 border-b border-white/10">
+                <span class="code-font text-xs font-bold text-[#FF5733] w-5">04</span>
+                <span class="text-sm sm:text-base font-medium text-white">Jose Carlos Jauregui Zavaleta</span>
+              </li>
+              <li class="flex items-center gap-3.5 py-1.5">
+                <span class="code-font text-xs font-bold text-[#FF5733] w-5">05</span>
+                <span class="text-sm sm:text-base font-medium text-white">Fabricio Antonio Farfan Cruz</span>
+              </li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- SLIDE 02: PROPUESTA GENERAL Y ARQUITECTURA DE FLUJO (PUNTO 02)        -->
+    <!-- ===================================================================== -->
+    <section class="slide" data-index="2">
+      <div class="max-w-6xl mx-auto w-full space-y-6 custom-scroll">
+        <div class="hairline-b pb-3 flex flex-wrap items-end justify-between gap-2 anim-item">
+          <div>
+            <span class="text-xs uppercase tracking-[0.2em] text-[#FF7A59] block mb-1">Punto 02 · Visión General del Sistema</span>
+            <h2 class="font-display font-black text-5xl sm:text-6xl text-white">
+              PROPUESTA EN <span class="text-[#FF5733]">PYTHON 3.11</span>
+            </h2>
+          </div>
+          <span class="code-font text-xs text-white/75">Flujo: Entrada → 5 Motores → Ruta Óptima</span>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          <!-- Columna Izquierda: Pipeline Entrada -> Procesamiento -> Salida -->
+          <div class="lg:col-span-7 space-y-5 anim-item delay-1">
+            <p class="text-sm text-white/85 leading-relaxed">
+              Sistema interactivo en consola diseñado para modelar laberintos como matrices <code class="code-font text-[#FF7A59]">m × n</code>, comparar empíricamente cinco enfoques algorítmicos y garantizar el camino más corto mediante búsqueda en anchura (<strong class="text-white">BFS</strong>).
+            </p>
+
+            <!-- Diagrama visual de flujo Entrada -> Motor -> Salida (corregido) -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 hairline-t hairline-b py-5">
+              <div class="flex items-start gap-3">
+                <svg class="w-7 h-7 text-sky-400 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>
+                </svg>
+                <div>
+                  <div class="text-xs font-bold uppercase tracking-wider text-white">1. Entrada</div>
+                  <div class="text-[11px] text-white/75 code-font mt-0.5">Matriz m×n (S, E, 0, 1)</div>
+                  <div class="text-[11px] text-white/60 mt-1">Fija, manual o por semilla.</div>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-3 sm:hairline-l sm:pl-4">
+                <svg class="w-7 h-7 text-[#FF5733] shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M12 7.5v4.5m0 0l-5.5 5m5.5-5l5.5 5"/>
+                </svg>
+                <div>
+                  <div class="text-xs font-bold uppercase tracking-wider text-white">2. Motores</div>
+                  <div class="text-[11px] text-white/75 code-font mt-0.5">BT · DFS · BFS · Dijkstra · A*</div>
+                  <div class="text-[11px] text-white/60 mt-1">Ejecución aislada y medida.</div>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-3 sm:hairline-l sm:pl-4">
+                <svg class="w-7 h-7 text-emerald-400 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M4 19h4v-6h6v-6h6"/><circle cx="20" cy="7" r="2" fill="currentColor"/>
+                </svg>
+                <div>
+                  <div class="text-xs font-bold uppercase tracking-wider text-white">3. Salida</div>
+                  <div class="text-[11px] text-white/75 code-font mt-0.5">Ruta (*) + Métricas</div>
+                  <div class="text-[11px] text-white/60 mt-1">Pasos, nodos y tiempo (ms).</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pilares clave -->
+            <div class="grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <span class="text-[#FF7A59] font-bold uppercase tracking-wider block mb-0.5">Cero Dependencias</span>
+                <span class="text-white/75">Implementado 100% con librería estándar (<code class="code-font">deque</code>, <code class="code-font">heapq</code>, <code class="code-font">time</code>, <code class="code-font">random</code>).</span>
+              </div>
+              <div>
+                <span class="text-[#FF7A59] font-bold uppercase tracking-wider block mb-0.5">Validación Robusta</span>
+                <span class="text-white/75">Detecta mapas sin salida y valida coordenadas únicas <code class="code-font">'S'</code> y <code class="code-font">'E'</code>.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Columna Derecha: Vista Previa de Matriz Resuelta -->
+          <div class="lg:col-span-5 lg:hairline-l lg:pl-8 flex flex-col items-center space-y-3 anim-item delay-2">
+            <div class="w-full max-w-[260px] flex justify-between text-[11px] uppercase tracking-[0.18em] text-white/75">
+              <span>Ruta Óptima BFS</span>
+              <span class="code-font text-[#FF7A59] font-bold">10 pasos</span>
+            </div>
+            <div id="coverMiniGrid" class="grid grid-cols-6 gap-1.5 max-w-[260px]"></div>
+            <div class="w-full max-w-[260px] flex justify-between text-[11px] code-font text-white/65 pt-1">
+              <span><strong class="text-[#FF5733]">S</strong> Inicio · <strong class="text-emerald-400">E</strong> Fin</span>
+              <span><strong class="text-[#FF7A59]">*</strong> Camino · # Muro</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- SLIDE 02: PLANTEAMIENTO DEL PROBLEMA (PUNTO 3)                        -->
+    <!-- ===================================================================== -->
+    <section class="slide" data-index="2">
+      <div class="max-w-6xl mx-auto w-full space-y-6 custom-scroll">
+        <div class="hairline-b pb-3 flex flex-wrap items-end justify-between gap-2 anim-item">
+          <div>
+            <span class="text-xs uppercase tracking-[0.2em] text-[#FF7A59] block mb-1">Punto 03 · Definición Formal</span>
+            <h2 class="font-display font-black text-5xl sm:text-6xl text-white">
+              PLANTEAMIENTO Y <span class="text-[#FF5733]">REGLAS DEL TABLERO</span>
+            </h2>
+          </div>
+          <span class="code-font text-xs text-white/75">Objetivo: Ruta mínima + Detección sin salida</span>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          <!-- Columna 1: Rosa de los Vientos SVG (4 Movimientos) -->
+          <div class="lg:col-span-4 flex flex-col items-center text-center space-y-3 anim-item delay-1">
+            <div class="text-xs uppercase tracking-[0.18em] text-white/75 font-bold">4 Movimientos Válidos (Costo = 1)</div>
+            <svg viewBox="0 0 220 220" class="w-48 h-48">
+              <!-- Ejes -->
+              <line x1="110" y1="32" x2="110" y2="188" stroke="rgba(255,255,255,0.22)" stroke-width="1.5" stroke-dasharray="4 3"/>
+              <line x1="32" y1="110" x2="188" y2="110" stroke="rgba(255,255,255,0.22)" stroke-width="1.5" stroke-dasharray="4 3"/>
+              <!-- Nodo central -->
+              <circle cx="110" cy="110" r="22" fill="#FF5733" class="node-pulse"/>
+              <text x="110" y="114" text-anchor="middle" fill="#FFFFFF" font-size="11" font-weight="bold" class="code-font">(f, c)</text>
+
+              <!-- Arriba (-1, 0) -->
+              <g transform="translate(110, 26)">
+                <polygon points="0,-12 -8,2 8,2" fill="#FFFFFF"/>
+                <text x="0" y="-16" text-anchor="middle" fill="#FF7A59" font-size="11" font-weight="bold" class="code-font">(-1, 0)</text>
+              </g>
+              <!-- Abajo (1, 0) -->
+              <g transform="translate(110, 194)">
+                <polygon points="0,12 -8,-2 8,-2" fill="#FFFFFF"/>
+                <text x="0" y="23" text-anchor="middle" fill="#FF7A59" font-size="11" font-weight="bold" class="code-font">(+1, 0)</text>
+              </g>
+              <!-- Izquierda (0, -1) -->
+              <g transform="translate(26, 110)">
+                <polygon points="-12,0 2,-8 2,8" fill="#FFFFFF"/>
+                <text x="-15" y="-12" text-anchor="middle" fill="#FF7A59" font-size="11" font-weight="bold" class="code-font">(0, -1)</text>
+              </g>
+              <!-- Derecha (0, 1) -->
+              <g transform="translate(194, 110)">
+                <polygon points="12,0 -2,-8 -2,8" fill="#FFFFFF"/>
+                <text x="15" y="-12" text-anchor="middle" fill="#FF7A59" font-size="11" font-weight="bold" class="code-font">(0, +1)</text>
+              </g>
+            </svg>
+            <div class="text-xs text-white/75">Sin diagonales · Sin pesos variables</div>
+          </div>
+
+          <!-- Columna 2: Leyenda Visual de Símbolos + 5 Restricciones Icónicas -->
+          <div class="lg:col-span-5 lg:hairline-l lg:pl-7 space-y-5 anim-item delay-2">
+            <!-- Leyenda de celdas -->
+            <div>
+              <div class="text-xs uppercase tracking-[0.18em] text-white/75 font-bold mb-3">Codificación de Matriz m × n</div>
+              <div class="grid grid-cols-4 gap-2 text-center code-font">
+                <div class="py-2.5 border border-[#FF5733] bg-[#FF5733]/20">
+                  <div class="text-base font-extrabold text-white">'S'</div>
+                  <div class="text-[10px] text-white/80 uppercase mt-0.5">Inicio (1)</div>
+                </div>
+                <div class="py-2.5 border border-emerald-400 bg-emerald-500/20">
+                  <div class="text-base font-extrabold text-white">'E'</div>
+                  <div class="text-[10px] text-white/80 uppercase mt-0.5">Salida (1)</div>
+                </div>
+                <div class="py-2.5 border border-white/25">
+                  <div class="text-base font-bold text-white">0</div>
+                  <div class="text-[10px] text-white/70 uppercase mt-0.5">Libre (.)</div>
+                </div>
+                <div class="py-2.5 border border-white/15 bg-white/5">
+                  <div class="text-base font-bold text-white/50">1</div>
+                  <div class="text-[10px] text-white/50 uppercase mt-0.5">Muro (#)</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Restricciones visuales -->
+            <div class="hairline-t pt-4 space-y-2.5">
+              <div class="text-xs uppercase tracking-[0.18em] text-white/75 font-bold">Restricciones Clave</div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div class="flex items-center gap-2.5">
+                  <svg class="w-5 h-5 text-[#FF5733] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9l6 6m0-6l-6 6"/></svg>
+                  <span>Límites <code class="code-font text-[#FF7A59]">0 ≤ f &lt; m</code>, <code class="code-font text-[#FF7A59]">0 ≤ c &lt; n</code></span>
+                </div>
+                <div class="flex items-center gap-2.5">
+                  <svg class="w-5 h-5 text-[#FF5733] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  <span><code class="code-font text-[#FF7A59]">set()</code> anti-ciclos infinitos</span>
+                </div>
+                <div class="flex items-center gap-2.5">
+                  <svg class="w-5 h-5 text-[#FF5733] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
+                  <span>Detección de mapa sin salida</span>
+                </div>
+                <div class="flex items-center gap-2.5">
+                  <svg class="w-5 h-5 text-[#FF5733] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                  <span>Python 3.11 librería estándar</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Columna 3: Ejemplo 4x4 Visual -->
+          <div class="lg:col-span-3 lg:hairline-l lg:pl-6 space-y-2.5 anim-item delay-3">
+            <div class="text-xs uppercase tracking-[0.18em] text-white/75 font-bold">Ejemplo 4×4 (6 Pasos)</div>
+            <div class="grid grid-cols-4 gap-1.5 max-w-[190px] text-center code-font text-xs font-bold">
+              <div class="py-2 bg-[#FF5733] text-white">S</div>
+              <div class="py-2 border border-[#FF7A59] text-[#FF7A59]">*</div>
+              <div class="py-2 border border-white/15 text-white/30">#</div>
+              <div class="py-2 border border-white/15 text-white/50">.</div>
+
+              <div class="py-2 border border-white/15 text-white/30">#</div>
+              <div class="py-2 border border-[#FF7A59] text-[#FF7A59]">*</div>
+              <div class="py-2 border border-white/15 text-white/30">#</div>
+              <div class="py-2 border border-white/15 text-white/50">.</div>
+
+              <div class="py-2 border border-white/15 text-white/50">.</div>
+              <div class="py-2 border border-[#FF7A59] text-[#FF7A59]">*</div>
+              <div class="py-2 border border-[#FF7A59] text-[#FF7A59]">*</div>
+              <div class="py-2 border border-white/15 text-white/30">#</div>
+
+              <div class="py-2 border border-white/15 text-white/30">#</div>
+              <div class="py-2 border border-white/15 text-white/30">#</div>
+              <div class="py-2 border border-[#FF7A59] text-[#FF7A59]">*</div>
+              <div class="py-2 bg-emerald-500 text-black">E</div>
+            </div>
+            <div class="text-[11px] code-font text-white/70 pt-1">
+              Entrada: Manual · Fija · Semilla
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- SLIDE 03: POSIBLES SOLUCIONES COMPARADAS (PUNTO 4)                    -->
+    <!-- ===================================================================== -->
+    <section class="slide" data-index="3">
+      <div class="max-w-6xl mx-auto w-full space-y-5 custom-scroll">
+        <div class="hairline-b pb-3 flex flex-wrap items-end justify-between gap-2 anim-item">
+          <div>
+            <span class="text-xs uppercase tracking-[0.2em] text-[#FF7A59] block mb-1">Punto 04 · Evaluación de Alternativas</span>
+            <h2 class="font-display font-black text-5xl sm:text-6xl text-white">
+              COMPARATIVA DE <span class="text-[#FF5733]">5 ESTRATEGIAS</span>
+            </h2>
+          </div>
+          <span class="code-font text-xs text-white/75">Prueba real en mapa 40×40 (1,600 celdas)</span>
+        </div>
+
+        <!-- 5 Columnas Abiertas con Barras Animadas -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5 items-stretch">
+          <!-- Alternativa A: Backtracking -->
+          <div class="hairline-t pt-3.5 space-y-3 anim-item delay-1">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-[10px] uppercase tracking-widest text-white/60 block">Alternativa A</span>
+                <h3 class="font-display font-extrabold text-2xl text-white tracking-tight">Backtracking</h3>
+              </div>
+              <svg class="w-6 h-6 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M9 14L4 9l5-5"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/>
+              </svg>
+            </div>
+
+            <div class="space-y-1.5 text-[11px]">
+              <div class="flex justify-between text-white/80">
+                <span>Ruta (40×40)</span>
+                <span class="code-font font-bold text-amber-400">602 pasos</span>
+              </div>
+              <div class="w-full h-1.5 bg-white/10 overflow-hidden">
+                <div class="bar-fill h-full bg-amber-400 w-[100%]"></div>
+              </div>
+            </div>
+
+            <div class="space-y-1 text-[11px] text-white/85 pt-0.5">
+              <div class="flex items-start gap-1.5"><span class="text-emerald-400 font-bold">+</span><span>Poda callejones con <code class="code-font">visitado</code></span></div>
+              <div class="flex items-start gap-1.5"><span class="text-rose-400 font-bold">−</span><span>No garantiza ruta óptima</span></div>
+              <div class="flex items-start gap-1.5"><span class="text-rose-400 font-bold">−</span><span>Límite de recursión Python</span></div>
+            </div>
+
+            <div class="hairline-t pt-2 flex flex-col gap-0.5 code-font text-[10.5px] text-white/75">
+              <span>Sin poda: O(b^d)</span>
+              <span class="text-white font-semibold">Con poda: O(m·n)</span>
+            </div>
+          </div>
+
+          <!-- Alternativa B: DFS -->
+          <div class="hairline-t lg:hairline-l lg:pl-4 pt-3.5 space-y-3 anim-item delay-1">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-[10px] uppercase tracking-widest text-white/60 block">Alternativa B</span>
+                <h3 class="font-display font-extrabold text-2xl text-white tracking-tight">DFS Iterativo</h3>
+              </div>
+              <svg class="w-6 h-6 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M12 3v18m0 0l-6-6m6 6l6-6"/>
+              </svg>
+            </div>
+
+            <div class="space-y-1.5 text-[11px]">
+              <div class="flex justify-between text-white/80">
+                <span>Ruta (40×40)</span>
+                <span class="code-font font-bold text-sky-400">166 pasos</span>
+              </div>
+              <div class="w-full h-1.5 bg-white/10 overflow-hidden">
+                <div class="bar-fill h-full bg-sky-400 w-[28%]"></div>
+              </div>
+            </div>
+
+            <div class="space-y-1 text-[11px] text-white/85 pt-0.5">
+              <div class="flex items-start gap-1.5"><span class="text-emerald-400 font-bold">+</span><span>Pila LIFO evita desbordar stack</span></div>
+              <div class="flex items-start gap-1.5"><span class="text-emerald-400 font-bold">+</span><span>Estable en matrices grandes</span></div>
+              <div class="flex items-start gap-1.5"><span class="text-rose-400 font-bold">−</span><span>Profundiza rama (con rodeos)</span></div>
+            </div>
+
+            <div class="hairline-t pt-2 flex flex-col gap-0.5 code-font text-[10.5px] text-white/75">
+              <span>Tiempo: O(m·n)</span>
+              <span class="text-white font-semibold">Espacio: O(m·n)</span>
+            </div>
+          </div>
+
+          <!-- Alternativa C: BFS (ELEGIDA) -->
+          <div class="hairline-t lg:hairline-l lg:pl-4 pt-3.5 space-y-3 anim-item delay-2 bg-[#FF5733]/[0.06] px-2.5 pb-2.5">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-[10px] uppercase tracking-widest text-[#FF5733] font-bold block">Alt. C · Elegida</span>
+                <h3 class="font-display font-black text-2xl text-white tracking-tight">BFS (Anchura)</h3>
+              </div>
+              <svg class="w-6 h-6 text-[#FF5733]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7" stroke-dasharray="3 2"/><circle cx="12" cy="12" r="10" stroke-opacity="0.5"/>
+              </svg>
+            </div>
+
+            <div class="space-y-1.5 text-[11px]">
+              <div class="flex justify-between text-white">
+                <span>Ruta (40×40)</span>
+                <span class="code-font font-extrabold text-[#FF5733]">78 (ÓPTIMO)</span>
+              </div>
+              <div class="w-full h-1.5 bg-white/10 overflow-hidden">
+                <div class="bar-fill h-full bg-[#FF5733] w-[13%]"></div>
+              </div>
+            </div>
+
+            <div class="space-y-1 text-[11px] text-white pt-0.5">
+              <div class="flex items-start gap-1.5"><span class="text-[#FF5733] font-bold">✓</span><span>Garantiza <strong>camino más corto</strong></span></div>
+              <div class="flex items-start gap-1.5"><span class="text-[#FF5733] font-bold">✓</span><span>Cola FIFO <code class="code-font">deque</code> en O(1)</span></div>
+              <div class="flex items-start gap-1.5"><span class="text-[#FF5733] font-bold">✓</span><span>Más rápido (0.8613 ms)</span></div>
+            </div>
+
+            <div class="hairline-t pt-2 flex flex-col gap-0.5 code-font text-[10.5px] text-white">
+              <span>Tiempo: O(m·n)</span>
+              <span class="text-[#FF7A59] font-bold">Espacio: O(m·n)</span>
+            </div>
+          </div>
+
+          <!-- Alternativa D: Dijkstra -->
+          <div class="hairline-t lg:hairline-l lg:pl-4 pt-3.5 space-y-3 anim-item delay-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-[10px] uppercase tracking-widest text-white/60 block">Alternativa D</span>
+                <h3 class="font-display font-extrabold text-2xl text-white tracking-tight">Dijkstra</h3>
+              </div>
+              <svg class="w-6 h-6 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+              </svg>
+            </div>
+
+            <div class="space-y-1.5 text-[11px]">
+              <div class="flex justify-between text-white/80">
+                <span>Ruta (40×40)</span>
+                <span class="code-font font-bold text-purple-400">78 (ÓPTIMO)</span>
+              </div>
+              <div class="w-full h-1.5 bg-white/10 overflow-hidden">
+                <div class="bar-fill h-full bg-purple-400 w-[13%]"></div>
+              </div>
+            </div>
+
+            <div class="space-y-1 text-[11px] text-white/85 pt-0.5">
+              <div class="flex items-start gap-1.5"><span class="text-emerald-400 font-bold">+</span><span>Óptimo con pesos variables</span></div>
+              <div class="flex items-start gap-1.5"><span class="text-rose-400 font-bold">−</span><span>Sobrecarga <code class="code-font">heapq</code> logarítmica</span></div>
+              <div class="flex items-start gap-1.5"><span class="text-rose-400 font-bold">−</span><span>5.4544 ms (1,159 nodos)</span></div>
+            </div>
+
+            <div class="hairline-t pt-2 flex flex-col gap-0.5 code-font text-[10.5px] text-white/75">
+              <span>T: O((m·n) log(m·n))</span>
+              <span class="text-white font-semibold">Espacio: O(m·n)</span>
+            </div>
+          </div>
+
+          <!-- Alternativa E: A* -->
+          <div class="hairline-t lg:hairline-l lg:pl-4 pt-3.5 space-y-3 anim-item delay-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-[10px] uppercase tracking-widest text-white/60 block">Alternativa E</span>
+                <h3 class="font-display font-extrabold text-2xl text-white tracking-tight">A* (A estrella)</h3>
+              </div>
+              <svg class="w-6 h-6 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+            </div>
+
+            <div class="space-y-1.5 text-[11px]">
+              <div class="flex justify-between text-white/80">
+                <span>Ruta (40×40)</span>
+                <span class="code-font font-bold text-emerald-400">78 (ÓPTIMO)</span>
+              </div>
+              <div class="w-full h-1.5 bg-white/10 overflow-hidden">
+                <div class="bar-fill h-full bg-emerald-400 w-[13%]"></div>
+              </div>
+            </div>
+
+            <div class="space-y-1 text-[11px] text-white/85 pt-0.5">
+              <div class="flex items-start gap-1.5"><span class="text-emerald-400 font-bold">+</span><span>Heurística Manhattan h(n)</span></div>
+              <div class="flex items-start gap-1.5"><span class="text-emerald-400 font-bold">+</span><span>Solo 456 nodos explorados</span></div>
+              <div class="flex items-start gap-1.5"><span class="text-rose-400 font-bold">−</span><span>Mantiene <code class="code-font">heapq</code> en O(log N)</span></div>
+            </div>
+
+            <div class="hairline-t pt-2 flex flex-col gap-0.5 code-font text-[10.5px] text-white/75">
+              <span>T: O((m·n) log(m·n))</span>
+              <span class="text-white font-semibold">Espacio: O(m·n)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- SLIDE 04: ALGORITMO SELECCIONADO Y JUSTIFICACIÓN (PUNTO 5)            -->
+    <!-- ===================================================================== -->
+    <section class="slide" data-index="4">
+      <div class="max-w-6xl mx-auto w-full space-y-6 custom-scroll">
+        <div class="hairline-b pb-3 flex flex-wrap items-end justify-between gap-2 anim-item">
+          <div>
+            <span class="text-xs uppercase tracking-[0.2em] text-[#FF7A59] block mb-1">Punto 05 · Estrategia Principal</span>
+            <h2 class="font-display font-black text-5xl sm:text-6xl text-white">
+              ¿POR QUÉ <span class="text-[#FF5733]">BFS (ANCHURA)</span>?
+            </h2>
+          </div>
+          <span class="code-font text-xs text-[#FF7A59] font-semibold">Optimalidad garantizada con costo = 1</span>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          <!-- Visualizador SVG Animado de Expansión por Niveles -->
+          <div class="lg:col-span-5 flex flex-col items-center space-y-3 anim-item delay-1">
+            <div class="text-xs uppercase tracking-[0.18em] text-white/75 font-bold">Expansión Concéntrica por Niveles</div>
+            <svg viewBox="0 0 280 230" class="w-full max-w-[290px] h-auto">
+              <!-- Ondas de distancia -->
+              <circle cx="65" cy="115" r="38" fill="none" stroke="rgba(255,87,51,0.75)" stroke-width="1.5" stroke-dasharray="4 3"/>
+              <circle cx="65" cy="115" r="78" fill="none" stroke="rgba(255,122,89,0.5)" stroke-width="1.5" stroke-dasharray="4 3"/>
+              <circle cx="65" cy="115" r="122" fill="none" stroke="rgba(255,255,255,0.32)" stroke-width="1.5" stroke-dasharray="4 3"/>
+              <circle cx="65" cy="115" r="165" fill="none" stroke="rgba(16,185,129,0.65)" stroke-width="1.8"/>
+
+              <!-- Etiquetas de nivel -->
+              <text x="65" y="70" text-anchor="middle" fill="#FF7A59" font-size="9.5" class="code-font">Nivel 1</text>
+              <text x="115" y="42" text-anchor="middle" fill="#FF7A59" font-size="9.5" class="code-font">Nivel 2</text>
+              <text x="165" y="24" text-anchor="middle" fill="rgba(255,255,255,0.75)" font-size="9.5" class="code-font">Nivel 3</text>
+              <text x="225" y="45" text-anchor="middle" fill="#34D399" font-size="10" font-weight="bold" class="code-font">Nivel k (Meta)</text>
+
+              <!-- Ruta óptima directa -->
+              <path d="M 65 115 L 103 115 L 143 115 L 187 115 L 230 115" stroke="#FFFFFF" stroke-width="2.5" class="svg-draw"/>
+
+              <!-- Nodo S -->
+              <circle cx="65" cy="115" r="14" fill="#FF5733" class="node-pulse"/>
+              <text x="65" y="119" text-anchor="middle" fill="#FFFFFF" font-size="11" font-weight="bold" class="code-font">S</text>
+
+              <!-- Nodos intermedios -->
+              <circle cx="103" cy="115" r="4.5" fill="#FFFFFF"/>
+              <circle cx="143" cy="115" r="4.5" fill="#FFFFFF"/>
+              <circle cx="187" cy="115" r="4.5" fill="#FFFFFF"/>
+
+              <!-- Nodo E -->
+              <circle cx="230" cy="115" r="14" fill="#10B981"/>
+              <text x="230" y="119" text-anchor="middle" fill="#000000" font-size="11" font-weight="bold" class="code-font">E</text>
+            </svg>
+            <p class="text-xs text-center text-white/80 max-w-xs">
+              A diferencia de <strong class="text-white">Dijkstra/A*</strong> (<code class="code-font">heapq</code> O(log N)), BFS opera en <strong class="text-[#FF7A59]">O(1)</strong> amortizado y halla <strong class="text-emerald-400">'E'</strong> con pasos mínimos.
+            </p>
+          </div>
+
+          <!-- 4 Estructuras de Datos con Iconos + Garantías/Límites -->
+          <div class="lg:col-span-7 lg:hairline-l lg:pl-8 space-y-5 anim-item delay-2">
+            <div class="text-xs uppercase tracking-[0.18em] text-white/75 font-bold">4 Estructuras de Datos O(1)</div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div class="flex items-start gap-3 hairline-t pt-3">
+                <svg class="w-6 h-6 text-[#FF5733] shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
+                <div>
+                  <div class="font-bold text-sm text-white">Matriz 2D <span class="code-font text-xs text-white/60">list[list]</span></div>
+                  <div class="text-xs text-white/80 mt-0.5">Mapa <code class="code-font">m × n</code> con <code class="code-font">0, 1, 'S', 'E'</code>.</div>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-3 hairline-t pt-3">
+                <svg class="w-6 h-6 text-[#FF5733] shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h10"/><polyline points="17 14 20 17 17 20"/></svg>
+                <div>
+                  <div class="font-bold text-sm text-white">Cola FIFO <span class="code-font text-xs text-[#FF7A59]">deque · O(1)</span></div>
+                  <div class="text-xs text-white/80 mt-0.5"><code class="code-font">append()</code> y <code class="code-font">popleft()</code> sin desplazamientos.</div>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-3 hairline-t pt-3">
+                <svg class="w-6 h-6 text-[#FF5733] shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/><path d="M8 11l2 2 4-4"/></svg>
+                <div>
+                  <div class="font-bold text-sm text-white">Conjunto <span class="code-font text-xs text-[#FF7A59]">set · O(1)</span></div>
+                  <div class="text-xs text-white/80 mt-0.5"><code class="code-font">visitado</code> bloquea re-exploración y ciclos.</div>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-3 hairline-t pt-3">
+                <svg class="w-6 h-6 text-[#FF5733] shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                <div>
+                  <div class="font-bold text-sm text-white">Diccionario <span class="code-font text-xs text-white/60">padre</span></div>
+                  <div class="text-xs text-white/80 mt-0.5">Traza <code class="code-font">padre[(nf,nc)] = actual</code> de E → S.</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Garantías y Límite en 2 líneas limpias -->
+            <div class="hairline-t pt-3 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div>
+                <span class="text-emerald-400 font-bold uppercase tracking-wider block mb-0.5">✓ Garantía</span>
+                <span class="text-white/85">Halla el mínimo de pasos si existe ruta; retorna <code class="code-font">False</code> si está bloqueado.</span>
+              </div>
+              <div>
+                <span class="text-amber-400 font-bold uppercase tracking-wider block mb-0.5">! Límite</span>
+                <span class="text-white/85">Requiere pesos iguales (=1). Con costos distintos usaría <strong>Dijkstra / A*</strong> (<code class="code-font">heapq</code>).</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- SLIDE 05: DISEÑO Y DIAGRAMA DE FLUJO INTERACTIVO (PUNTO 6)            -->
+    <!-- ===================================================================== -->
+    <section class="slide" data-index="5">
+      <div class="max-w-6xl mx-auto w-full space-y-4 custom-scroll">
+        <div class="hairline-b pb-2.5 flex flex-wrap items-end justify-between gap-2 anim-item">
+          <div>
+            <span class="text-xs uppercase tracking-[0.2em] text-[#FF7A59] block mb-0.5">Punto 06 · Lógica y Flujo de Control</span>
+            <h2 class="font-display font-black text-4xl sm:text-5xl text-white">
+              DISEÑO DE <span class="text-[#FF5733]">RESOLVER_BFS</span>
+            </h2>
+          </div>
+
+          <!-- Botón interactivo para recorrer paso a paso el diagrama y pseudocódigo -->
+          <div class="flex items-center gap-2">
+            <button onclick="stepFlowchart()" class="px-3.5 py-1.5 bg-[#FF5733] hover:bg-[#ff6b4a] text-white text-xs font-bold uppercase tracking-wider transition cursor-pointer">
+              Simular Paso Flujo →
+            </button>
+            <span id="flowStepLabel" class="code-font text-xs text-white/80">Paso 1 / 5</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+          <!-- Ventana Flotante Oscura de Pseudocódigo Sincronizada -->
+          <div class="lg:col-span-6 space-y-3 anim-item delay-1">
+            <div class="floating-terminal p-4">
+              <div class="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
+                <div class="flex items-center gap-1.5">
+                  <span class="w-2.5 h-2.5 rounded-full bg-[#FF5733]"></span>
+                  <span class="w-2.5 h-2.5 rounded-full bg-amber-400/70"></span>
+                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-400/70"></span>
+                </div>
+                <span class="code-font text-[11px] text-white/60">resolver_bfs(maze)</span>
+              </div>
+              <pre class="code-font text-[11.5px] leading-relaxed text-white/85 overflow-x-auto"><div id="pl-1" class="pseudo-line active-line"><span class="text-[#FF7A59] font-bold">1.</span> (inicio, fin) ← BuscarInicioFin(maze)
+   <span class="text-white/60">SI</span> inicio = NULO O fin = NULO → <span class="text-rose-400">RETORNAR FALSO</span></div><div id="pl-2" class="pseudo-line"><span class="text-[#FF7A59] font-bold">2.</span> cola ← deque([inicio]); visitado ← {inicio}
+   padre ← {inicio: NULO}; explorados ← 0</div><div id="pl-3" class="pseudo-line"><span class="text-[#FF7A59] font-bold">3.</span> <span class="text-white/60">MIENTRAS</span> cola NO ESTE VACIA:
+   actual ← cola.popleft(); explorados += 1</div><div id="pl-4" class="pseudo-line"><span class="text-[#FF7A59] font-bold">4.</span> <span class="text-white/60">SI</span> actual = fin → <span class="text-emerald-400 font-bold">RETORNAR (VERDADERO, Reconstruir(padre))</span>
+   <span class="text-white/60">PARA</span> (df, dc) <span class="text-white/60">EN</span> [(-1,0),(1,0),(0,-1),(0,1)]:
+     si libre y no visitado: marcar, padre y encolar</div><div id="pl-5" class="pseudo-line"><span class="text-[#FF7A59] font-bold">5.</span> <span class="text-rose-400 font-bold">RETORNAR (FALSO, [], explorados)</span> <span class="text-white/50"># Cola vacía</span></div></pre>
+            </div>
+          </div>
+
+          <!-- Diagrama de Flujo SVG con Nodos Iluminables -->
+          <div class="lg:col-span-6 lg:hairline-l lg:pl-5 flex flex-col items-center anim-item delay-2">
+            <svg viewBox="0 0 650 455" class="w-full h-auto max-h-[370px]" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <marker id="arr-clean" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill="#FFFFFF" />
+                </marker>
+              </defs>
+
+              <!-- 1. Inicio -->
+              <rect x="205" y="6" width="130" height="28" rx="14" fill="none" stroke="#FFFFFF" stroke-width="1.5" />
+              <text x="270" y="24" text-anchor="middle" fill="#FFFFFF" font-size="11.5" font-weight="bold">Inicio</text>
+              <line x1="270" y1="34" x2="270" y2="50" stroke="#FFFFFF" stroke-width="1.3" marker-end="url(#arr-clean)" />
+
+              <!-- Paso 1: Leer y validar S/E -->
+              <g id="fn-1">
+                <polygon points="150,52 405,52 390,90 135,90" fill="rgba(255,87,51,0.22)" stroke="#FF5733" stroke-width="1.8" />
+                <text x="270" y="69" text-anchor="middle" fill="#FFFFFF" font-size="10.5" font-weight="bold">Leer laberinto: inicio (S), salida (E)</text>
+                <text x="270" y="83" text-anchor="middle" fill="#FFFFFF" fill-opacity="0.8" font-size="9.5">caminos libres (0) y muros (1)</text>
+                <line x1="270" y1="90" x2="270" y2="108" stroke="#FFFFFF" stroke-width="1.3" marker-end="url(#arr-clean)" />
+
+                <polygon points="270,110 365,138 270,166 175,138" fill="rgba(255,87,51,0.22)" stroke="#FF5733" stroke-width="1.8" />
+                <text x="270" y="135" text-anchor="middle" fill="#FFFFFF" font-size="10.5" font-weight="bold">¿Existen S y E?</text>
+                <text x="270" y="148" text-anchor="middle" fill="#FFFFFF" fill-opacity="0.8" font-size="9.5">(Validación)</text>
+              </g>
+
+              <!-- Rama No -->
+              <line x1="365" y1="138" x2="440" y2="138" stroke="#FFFFFF" stroke-width="1.3" marker-end="url(#arr-clean)" />
+              <text x="395" y="132" fill="#FF7A59" font-size="10" font-weight="bold">No</text>
+              <rect x="444" y="118" width="196" height="38" rx="19" fill="rgba(244,63,94,0.18)" stroke="#FB7185" stroke-width="1.4" />
+              <text x="542" y="141" text-anchor="middle" fill="#FFFFFF" font-size="10.5" font-weight="bold">Error: faltan S o E (Fin)</text>
+
+              <!-- Paso 2: Encolar S -->
+              <line x1="270" y1="166" x2="270" y2="186" stroke="#FFFFFF" stroke-width="1.3" marker-end="url(#arr-clean)" />
+              <text x="280" y="180" fill="#34D399" font-size="10" font-weight="bold">Sí</text>
+
+              <g id="fn-2">
+                <rect x="155" y="188" width="230" height="36" rx="4" fill="none" stroke="#FFFFFF" stroke-width="1.4" />
+                <text x="270" y="204" text-anchor="middle" fill="#FFFFFF" font-size="10.5" font-weight="bold">Colocar S en cola FIFO</text>
+                <text x="270" y="218" text-anchor="middle" fill="#FFFFFF" fill-opacity="0.8" font-size="9.5">y marcarla en visitado</text>
+              </g>
+              <line x1="270" y1="224" x2="270" y2="240" stroke="#FFFFFF" stroke-width="1.3" marker-end="url(#arr-clean)" />
+
+              <!-- Paso 3 / 5: ¿Cola vacía? -->
+              <g id="fn-5">
+                <polygon points="270,242 360,267 270,292 180,267" fill="none" stroke="#FFFFFF" stroke-width="1.4" />
+                <text x="270" y="270" text-anchor="middle" fill="#FFFFFF" font-size="10.5" font-weight="bold">¿La cola está vacía?</text>
+
+                <line x1="360" y1="267" x2="440" y2="267" stroke="#FFFFFF" stroke-width="1.3" marker-end="url(#arr-clean)" />
+                <text x="395" y="261" fill="#FF7A59" font-size="10" font-weight="bold">Sí</text>
+                <rect x="444" y="247" width="196" height="38" rx="19" fill="rgba(244,63,94,0.18)" stroke="#FB7185" stroke-width="1.4" />
+                <text x="542" y="270" text-anchor="middle" fill="#FFFFFF" font-size="10.5" font-weight="bold">"No existe solución" (Fin)</text>
+              </g>
+
+              <!-- Paso 3: Sacar primera casilla -->
+              <line x1="270" y1="292" x2="270" y2="309" stroke="#FFFFFF" stroke-width="1.3" marker-end="url(#arr-clean)" />
+              <text x="280" y="304" fill="#34D399" font-size="10" font-weight="bold">No</text>
+
+              <g id="fn-3">
+                <rect x="165" y="311" width="210" height="28" rx="4" fill="none" stroke="#FFFFFF" stroke-width="1.4" />
+                <text x="270" y="329" text-anchor="middle" fill="#FFFFFF" font-size="10.5" font-weight="bold">Sacar primera casilla: popleft()</text>
+              </g>
+              <line x1="270" y1="339" x2="270" y2="352" stroke="#FFFFFF" stroke-width="1.3" marker-end="url(#arr-clean)" />
+
+              <!-- Paso 4: ¿Es E? y Vecinos -->
+              <g id="fn-4">
+                <polygon points="270,354 350,376 270,398 190,376" fill="none" stroke="#FFFFFF" stroke-width="1.4" />
+                <text x="270" y="379" text-anchor="middle" fill="#FFFFFF" font-size="10.5" font-weight="bold">¿Es la salida E?</text>
+
+                <line x1="350" y1="376" x2="438" y2="376" stroke="#FFFFFF" stroke-width="1.3" marker-end="url(#arr-clean)" />
+                <text x="388" y="370" fill="#34D399" font-size="10" font-weight="bold">Sí</text>
+                <rect x="442" y="357" width="198" height="36" rx="4" fill="#10B981" />
+                <text x="541" y="373" text-anchor="middle" fill="#000000" font-size="10.5" font-weight="bold">Reconstruir ruta mínima</text>
+                <text x="541" y="386" text-anchor="middle" fill="#000000" font-size="9.5">desde E hasta S (Fin)</text>
+
+                <line x1="270" y1="398" x2="270" y2="412" stroke="#FFFFFF" stroke-width="1.3" marker-end="url(#arr-clean)" />
+                <text x="280" y="408" fill="#FF7A59" font-size="10" font-weight="bold">No</text>
+
+                <rect x="135" y="414" width="270" height="34" rx="4" fill="none" stroke="#FFFFFF" stroke-width="1.4" />
+                <text x="270" y="429" text-anchor="middle" fill="#FFFFFF" font-size="10" font-weight="bold">Explorar 4 vecinos válidos:</text>
+                <text x="270" y="442" text-anchor="middle" fill="#FFFFFF" fill-opacity="0.8" font-size="9.5">marcar visitado, guardar padre y encolar</text>
+              </g>
+
+              <!-- Bucle retorno -->
+              <polyline points="135,431 54,431 54,267 176,267" fill="none" stroke="#FF7A59" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#arr-clean)" />
+              <rect x="12" y="334" width="84" height="28" rx="3" fill="#140302" stroke="#FF7A59" stroke-width="1.2" />
+              <text x="54" y="346" text-anchor="middle" fill="#FF7A59" font-size="9.5" font-weight="bold">Siguiente</text>
+              <text x="54" y="357" text-anchor="middle" fill="#FF7A59" font-size="9.5" font-weight="bold">casilla</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- SLIDE 06: ANÁLISIS DE COMPLEJIDAD + BENCHMARKS (PUNTO 7)              -->
+    <!-- ===================================================================== -->
+    <section class="slide" data-index="6">
+      <div class="max-w-6xl mx-auto w-full space-y-6 custom-scroll">
+        <div class="hairline-b pb-3 flex flex-wrap items-end justify-between gap-2 anim-item">
+          <div>
+            <span class="text-xs uppercase tracking-[0.2em] text-[#FF7A59] block mb-1">Punto 07 · Eficiencia Asintótica</span>
+            <h2 class="font-display font-black text-5xl sm:text-6xl text-white">
+              COMPLEJIDAD <span class="text-[#FF5733]">TEMPORAL Y ESPACIAL</span>
+            </h2>
+          </div>
+          <span class="code-font text-xs text-white/75">Variables: m = filas, n = columnas</span>
+        </div>
+
+        <!-- 4 KPIs Asintóticos Visuales en una fila abierta -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 anim-item delay-1">
+          <div class="hairline-t pt-3 space-y-1.5">
+            <span class="text-[11px] uppercase tracking-widest text-emerald-400 font-bold block">Mejor Caso</span>
+            <div class="font-display font-black text-5xl sm:text-6xl text-white">Ω(1)</div>
+            <p class="text-xs text-white/75">
+              <code class="code-font">'S'</code> y <code class="code-font">'E'</code> adyacentes al inicio (ej. mapa <code class="code-font">1×2</code>).
+            </p>
+          </div>
+
+          <div class="hairline-t lg:hairline-l lg:pl-5 pt-3 space-y-1.5">
+            <span class="text-[11px] uppercase tracking-widest text-[#FF7A59] font-bold block">Caso Promedio</span>
+            <div class="font-display font-black text-5xl sm:text-6xl text-white">O(m·n)</div>
+            <p class="text-xs text-white/75">
+              Determinista; explora fracción proporcional de celdas libres.
+            </p>
+          </div>
+
+          <div class="hairline-t lg:hairline-l lg:pl-5 pt-3 space-y-1.5">
+            <span class="text-[11px] uppercase tracking-widest text-[#FF5733] font-bold block">Peor Caso</span>
+            <div class="font-display font-black text-5xl sm:text-6xl text-white">O(m·n)</div>
+            <p class="text-xs text-white/75">
+              <code class="code-font">'E'</code> aislada o al extremo: <code class="code-font">4·m·n</code> ops + ruta <code class="code-font">O(m·n)</code>.
+            </p>
+          </div>
+
+          <div class="hairline-t lg:hairline-l lg:pl-5 pt-3 space-y-1.5">
+            <span class="text-[11px] uppercase tracking-widest text-sky-400 font-bold block">Espacio Auxiliar</span>
+            <div class="font-display font-black text-5xl sm:text-6xl text-white">O(m·n)</div>
+            <p class="text-xs text-white/75">
+              Hasta <code class="code-font">m·n</code> tuplas en <code class="code-font">deque</code>, <code class="code-font">visitado</code> y <code class="code-font">padre</code>.
+            </p>
+          </div>
+        </div>
+
+        <!-- Gráfico Visual de Escalamiento Empírico (10x10 -> 25x25 -> 40x40) -->
+        <div class="hairline-t pt-5 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center anim-item delay-2">
+          <div class="lg:col-span-4 space-y-2">
+            <div class="text-xs uppercase tracking-[0.18em] text-[#FF7A59] font-bold">Pruebas de Escalamiento (5 Algoritmos)</div>
+            <p class="text-xs sm:text-sm text-white/85 leading-relaxed">
+              Al multiplicar el área por <strong>16×</strong> (100 a 1,600 celdas), <strong>BFS</strong> mantiene el menor tiempo (<strong>0.8613 ms</strong>) frente a <strong>A*</strong> (2.0029 ms, 456 nodos) y <strong>Dijkstra</strong> (5.4544 ms), con ruta óptima de <strong>78 pasos</strong>.
+            </p>
+          </div>
+
+          <div class="lg:col-span-8 lg:hairline-l lg:pl-6 space-y-3 text-xs">
+            <!-- 10x10 -->
+            <div class="space-y-1">
+              <div class="flex flex-wrap justify-between gap-1 code-font text-[11px]">
+                <span class="text-white font-bold">10×10 (seed 10)</span>
+                <span class="text-[#FF7A59]">BFS: 0.0738 ms (18p) · A*: 0.1908 ms (47 exp) · Dij: 0.2857 ms · DFS: 22p · BT: 28p</span>
+              </div>
+              <div class="w-full h-2 bg-white/10 overflow-hidden">
+                <div class="bar-fill h-full bg-emerald-400 w-[12%]"></div>
+              </div>
+            </div>
+
+            <!-- 25x25 -->
+            <div class="space-y-1">
+              <div class="flex flex-wrap justify-between gap-1 code-font text-[11px]">
+                <span class="text-white font-bold">25×25 (seed 20)</span>
+                <span class="text-[#FF7A59]">BFS: 0.5322 ms (48p) · A*: 1.0887 ms (269 exp) · Dij: 1.6096 ms · DFS: 100p · BT: 168p</span>
+              </div>
+              <div class="w-full h-2 bg-white/10 overflow-hidden">
+                <div class="bar-fill h-full bg-amber-400 w-[55%]"></div>
+              </div>
+            </div>
+
+            <!-- 40x40 -->
+            <div class="space-y-1">
+              <div class="flex flex-wrap justify-between gap-1 code-font text-[11px]">
+                <span class="text-white font-bold">40×40 (seed 30)</span>
+                <span class="text-[#FF5733] font-bold">BFS: 0.8613 ms (78p) · A*: 2.0029 ms (456 exp) · Dij: 5.4544 ms · DFS: 166p · BT: 602p</span>
+              </div>
+              <div class="w-full h-2 bg-white/10 overflow-hidden">
+                <div class="bar-fill h-full bg-[#FF5733] w-[92%]"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- SLIDE 07: IMPLEMENTACIÓN Y ARQUITECTURA (PUNTO 8)                     -->
+    <!-- ===================================================================== -->
+    <section class="slide" data-index="7">
+      <div class="max-w-6xl mx-auto w-full space-y-6 custom-scroll">
+        <div class="hairline-b pb-3 flex flex-wrap items-end justify-between gap-2 anim-item">
+          <div>
+            <span class="text-xs uppercase tracking-[0.2em] text-[#FF7A59] block mb-1">Punto 08 · Entorno y Código Fuente</span>
+            <h2 class="font-display font-black text-5xl sm:text-6xl text-white">
+              ARQUITECTURA <span class="text-[#FF5733]">PYTHON 3.11</span>
+            </h2>
+          </div>
+          <span class="code-font text-xs text-white/80">447 líneas · 13 funciones · 0 dependencias externas</span>
+        </div>
+
+        <!-- 4 Módulos Visuales en flujo horizontal con conectores -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 anim-item delay-1">
+          <!-- Módulo 1 -->
+          <div class="hairline-t pt-4 space-y-2.5">
+            <div class="flex items-center justify-between text-[#FF5733]">
+              <span class="code-font text-xs font-bold">MÓDULO 01</span>
+              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            </div>
+            <h3 class="font-display font-extrabold text-2xl text-white">Mapas & Generador</h3>
+            <ul class="text-xs text-white/80 space-y-1 code-font">
+              <li>• MAPA_NORMAL (6×6)</li>
+              <li>• MAPA_LIMITE (1×2)</li>
+              <li>• MAPA_SIN_SOLUCION (5×5)</li>
+              <li>• generar_laberinto(seed)</li>
+            </ul>
+          </div>
+
+          <!-- Módulo 2 -->
+          <div class="hairline-t lg:hairline-l lg:pl-5 pt-4 space-y-2.5">
+            <div class="flex items-center justify-between text-[#FF5733]">
+              <span class="code-font text-xs font-bold">MÓDULO 02</span>
+              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="5" r="3"/><circle cx="5" cy="19" r="3"/><circle cx="19" cy="19" r="3"/><path d="M12 8v4l-5.5 5M12 12l5.5 5"/></svg>
+            </div>
+            <h3 class="font-display font-extrabold text-2xl text-white">Motores de Búsqueda (5)</h3>
+            <ul class="text-xs text-white/80 space-y-1 code-font">
+              <li>• resolver_backtracking() / dfs()</li>
+              <li>• resolver_bfs() + reconstruir()</li>
+              <li>• resolver_dijkstra()</li>
+              <li>• resolver_a_estrella() + manhattan()</li>
+            </ul>
+          </div>
+
+          <!-- Módulo 3 -->
+          <div class="hairline-t lg:hairline-l lg:pl-5 pt-4 space-y-2.5">
+            <div class="flex items-center justify-between text-[#FF5733]">
+              <span class="code-font text-xs font-bold">MÓDULO 03</span>
+              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg>
+            </div>
+            <h3 class="font-display font-extrabold text-2xl text-white">Métricas & Salida</h3>
+            <ul class="text-xs text-white/80 space-y-1 code-font">
+              <li>• ejecutar_prueba()</li>
+              <li>• time.perf_counter() ms</li>
+              <li>• mostrar_fila() alineada</li>
+              <li>• mostrar_laberinto('*')</li>
+            </ul>
+          </div>
+
+          <!-- Módulo 4 -->
+          <div class="hairline-t lg:hairline-l lg:pl-5 pt-4 space-y-2.5">
+            <div class="flex items-center justify-between text-[#FF5733]">
+              <span class="code-font text-xs font-bold">MÓDULO 04</span>
+              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            </div>
+            <h3 class="font-display font-extrabold text-2xl text-white">CLI & Validación</h3>
+            <ul class="text-xs text-white/80 space-y-1 code-font">
+              <li>• ingresar_laberinto()</li>
+              <li>• Valida única 'S' y 'E'</li>
+              <li>• Rechaza símbolos inválidos</li>
+              <li>• Menú interactivo 0–5</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Barra inferior de Entorno Estándar + Comando de Ejecución -->
+        <div class="hairline-t pt-4 flex flex-wrap items-center justify-between gap-4 text-xs anim-item delay-2">
+          <div class="flex flex-wrap items-center gap-4 text-white/85">
+            <span><strong class="text-white">IDE:</strong> VS Code + Consola</span>
+            <span class="text-white/30">|</span>
+            <span><strong class="text-white">Módulos:</strong> <code class="code-font text-[#FF7A59]">collections.deque</code> · <code class="code-font text-[#FF7A59]">heapq</code> · <code class="code-font text-[#FF7A59]">time</code> · <code class="code-font text-[#FF7A59]">random</code></span>
+          </div>
+          <div class="flex items-center gap-3">
+            <code class="code-font px-3 py-1.5 bg-black/60 border border-white/20 text-emerald-400">$ python resolvedor_laberintos.py</code>
+            <a href="https://github.com/DerianCrr/resolvedor-laberintos-grupo13/tree/main" target="_blank" rel="noopener" class="underline text-white/80 hover:text-[#FF7A59]">
+              GitHub Repo ↗
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- SLIDE 08: DEMO INTERACTIVA EN VIVO (CASOS DEL PROYECTO)               -->
+    <!-- ===================================================================== -->
+    <section class="slide" data-index="8">
+      <div class="max-w-6xl mx-auto w-full space-y-4 custom-scroll">
+        <div class="hairline-b pb-2.5 flex flex-wrap items-end justify-between gap-2 anim-item">
+          <div>
+            <span class="text-xs uppercase tracking-[0.2em] text-[#FF7A59] block mb-0.5">Demostración Interactiva · Ejecución en Vivo</span>
+            <h2 class="font-display font-black text-4xl sm:text-5xl text-white">
+              SIMULADOR COMPARATIVO <span class="text-[#FF5733]">GRUPO 13</span>
+            </h2>
+          </div>
+
+          <!-- Selector de Casos -->
+          <div class="flex flex-wrap gap-2">
+            <button onclick="selectScenario('normal')" id="btn-normal" class="scenario-btn px-3 py-1.5 text-xs font-bold bg-[#FF5733] text-white cursor-pointer transition">
+              1. Caso Normal (6×6)
+            </button>
+            <button onclick="selectScenario('limite')" id="btn-limite" class="scenario-btn px-3 py-1.5 text-xs font-bold border border-white/30 text-white hover:bg-white/10 cursor-pointer transition">
+              2. Caso Límite (1×2)
+            </button>
+            <button onclick="selectScenario('sin_solucion')" id="btn-sin_solucion" class="scenario-btn px-3 py-1.5 text-xs font-bold border border-white/30 text-white hover:bg-white/10 cursor-pointer transition">
+              3. Sin Solución (5×5)
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+          <!-- Columna 1: Tablero Interactivo con Animación de Ruta -->
+          <div class="lg:col-span-5 flex flex-col items-center space-y-3 anim-item delay-1">
+            <div class="w-full flex items-center justify-between">
+              <span id="mazeTitle" class="text-xs font-bold uppercase tracking-wider text-white">MAPA_NORMAL (6×6)</span>
+              <div class="flex flex-wrap gap-1">
+                <button onclick="showRouteFor('BFS')" id="view-BFS" class="view-btn px-2 py-1 text-[10.5px] code-font font-bold bg-[#FF5733] text-white cursor-pointer">BFS</button>
+                <button onclick="showRouteFor('AST')" id="view-AST" class="view-btn px-2 py-1 text-[10.5px] code-font font-bold border border-white/25 text-white cursor-pointer">A*</button>
+                <button onclick="showRouteFor('DIJ')" id="view-DIJ" class="view-btn px-2 py-1 text-[10.5px] code-font font-bold border border-white/25 text-white cursor-pointer">Dijkstra</button>
+                <button onclick="showRouteFor('DFS')" id="view-DFS" class="view-btn px-2 py-1 text-[10.5px] code-font font-bold border border-white/25 text-white cursor-pointer">DFS</button>
+                <button onclick="showRouteFor('BT')" id="view-BT" class="view-btn px-2 py-1 text-[10.5px] code-font font-bold border border-white/25 text-white cursor-pointer">BT</button>
+              </div>
+            </div>
+
+            <div id="mazeGridContainer" class="py-2 flex items-center justify-center min-h-[225px]"></div>
+
+            <div class="w-full hairline-t pt-2 flex justify-between text-[11px] text-white/75 code-font">
+              <span><strong class="text-[#FF5733]">S</strong> Inicio · <strong class="text-emerald-400">E</strong> Salida</span>
+              <span><strong class="text-white">*</strong> Ruta · <span class="text-white/40">#</span> Muro</span>
+            </div>
+          </div>
+
+          <!-- Columna 2: Tabla Comparativa Viva + Consola -->
+          <div class="lg:col-span-7 lg:hairline-l lg:pl-7 space-y-4 anim-item delay-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold uppercase tracking-wider text-white/80">Resultados Comparativos</span>
+              <button onclick="replayPathAnimation()" class="text-[11px] code-font text-[#FF7A59] hover:underline cursor-pointer">
+                ↻ Reproducir trazado
+              </button>
+            </div>
+
+            <table class="w-full text-left code-font text-xs sm:text-sm border-collapse">
+              <thead>
+                <tr class="hairline-b text-white/65 text-[11px] uppercase">
+                  <th class="py-2">Algoritmo</th>
+                  <th class="py-2">Salida</th>
+                  <th class="py-2">Pasos</th>
+                  <th class="py-2">Explorados</th>
+                  <th class="py-2">Eficiencia</th>
+                </tr>
+              </thead>
+              <tbody id="comparisonTableBody" class="divide-y divide-white/15">
+                <!-- Dinámico -->
+              </tbody>
+            </table>
+
+            <!-- Terminal oscura de consola -->
+            <div class="floating-terminal p-4 space-y-1.5">
+              <div class="flex items-center justify-between text-[11px] text-white/65 code-font">
+                <span id="consoleLabel">Consola · Ruta Óptima BFS</span>
+                <span id="stepsBadge" class="text-emerald-400 font-bold">10 pasos</span>
+              </div>
+              <p id="consoleOutput" class="code-font text-xs text-white/95 leading-relaxed break-words"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ======================================================================= -->
+  <!-- DESPLAZADOR MINIMALISTA EN ESQUINA INFERIOR IZQUIERDA (SIN HEADER)      -->
+  <!-- ======================================================================= -->
+  <nav class="bottom-left-nav" aria-label="Navegación de diapositivas">
+    <span class="nav-counter" id="slideCounter">01 / 09</span>
+
+    <div class="flex items-center gap-1.5">
+      <button class="nav-btn" id="prevBtn" onclick="changeSlide(-1)" title="Diapositiva anterior (Flecha Izquierda)" aria-label="Anterior">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
+      <button class="nav-btn" id="nextBtn" onclick="changeSlide(1)" title="Siguiente diapositiva (Flecha Derecha)" aria-label="Siguiente">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </button>
+    </div>
+
+    <div class="flex items-center gap-1.5" id="dotsContainer"></div>
+
+    <!-- Botón Superpuesto de Lupa Óptica -->
+    <button class="lupa-toggle-btn" id="lupaToggleBtn" onclick="toggleMagnifier()" title="Activar/Desactivar Lupa Óptica (Tecla L)">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="7"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        <line x1="11" y1="8" x2="11" y2="14"></line>
+        <line x1="8" y1="11" x2="14" y2="11"></line>
+      </svg>
+      <span>LUPA [L]</span>
+    </button>
+  </nav>
+
+  <script>
+    // =========================================================================
+    // PALETA DINÁMICA POR DIAPOSITIVA (OSCURECE SEGÚN DENSIDAD TÉCNICA)
+    // =========================================================================
+    const SLIDE_THEMES = [
+      // 01: Portada e Integrantes (Carmesí profundo elegante)
+      { bg: '#2B0704', glow: 'rgba(214, 40, 10, 0.36)', wireAlpha: 0.14 },
+      // 02: Propuesta General Punto 02 (Carmesí oscuro)
+      { bg: '#260603', glow: 'rgba(205, 36, 9, 0.32)', wireAlpha: 0.125 },
+      // 02: Planteamiento (Borgoña oscuro)
+      { bg: '#220503', glow: 'rgba(195, 32, 8, 0.28)', wireAlpha: 0.11 },
+      // 03: Comparativa (Obsidiana cálido)
+      { bg: '#1A0402', glow: 'rgba(170, 26, 6, 0.22)', wireAlpha: 0.09 },
+      // 04: Justificación BFS (Obsidiana profundo)
+      { bg: '#140302', glow: 'rgba(145, 22, 5, 0.18)', wireAlpha: 0.07 },
+      // 05: Diseño y Diagrama de Flujo (Negro carbón para máxima nitidez SVG)
+      { bg: '#0E0202', glow: 'rgba(120, 18, 4, 0.14)', wireAlpha: 0.05 },
+      // 06: Complejidad Big-O (Negro obsidiana)
+      { bg: '#0B0202', glow: 'rgba(105, 15, 4, 0.12)', wireAlpha: 0.04 },
+      // 07: Implementación (Negro profundo)
+      { bg: '#090101', glow: 'rgba(90, 12, 3, 0.10)', wireAlpha: 0.035 },
+      // 08: Simulador Interactivo (Negro puro de contraste máximo)
+      { bg: '#070101', glow: 'rgba(80, 10, 3, 0.09)', wireAlpha: 0.03 }
+    ];
+
+    let currentWireAlpha = SLIDE_THEMES[0].wireAlpha;
+
+    function applySlideTheme(index) {
+      const theme = SLIDE_THEMES[index] || SLIDE_THEMES[0];
+      document.body.style.backgroundColor = theme.bg;
+      document.getElementById('dynamicBackdrop').style.background =
+        `radial-gradient(circle at 65% 32%, ${theme.glow} 0%, ${theme.bg} 58%, #040000 100%)`;
+      currentWireAlpha = theme.wireAlpha;
+    }
+
+    // =========================================================================
+    // MALLA WIREFRAME 3D SUTIL DE FONDO
+    // =========================================================================
+    const canvas = document.getElementById('wireframeCanvas');
+    const ctx = canvas.getContext('2d');
+    let width = canvas.width = window.innerWidth;
+    let height = canvas.height = window.innerHeight;
+
+    window.addEventListener('resize', () => {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    });
+
+    let timeTick = 0;
+
+    function drawWireframe() {
+      ctx.clearRect(0, 0, width, height);
+
+      const cols = 22;
+      const rows = 14;
+      const startX = width * 0.25;
+      const endX = width * 0.96;
+      const startY = height * 0.1;
+      const endY = height * 0.75;
+
+      const points = [];
+      for (let r = 0; r <= rows; r++) {
+        const rowPts = [];
+        const v = r / rows;
+        for (let c = 0; c <= cols; c++) {
+          const u = c / cols;
+          const perspX = startX + u * (endX - startX) + (v - 0.5) * 70 * (u - 0.3);
+          const wave =
+            Math.sin(u * 5.0 + timeTick * 0.7) * 20 +
+            Math.cos(v * 4.2 - timeTick * 0.5) * 16;
+          const perspY = startY + v * (endY - startY) * (0.75 + u * 0.3) + wave;
+          rowPts.push({ x: perspX, y: perspY });
+        }
+        points.push(rowPts);
+      }
+
+      ctx.lineWidth = 0.8;
+      ctx.strokeStyle = `rgba(255, 110, 80, ${currentWireAlpha})`;
+
+      for (let r = 0; r <= rows; r++) {
+        ctx.beginPath();
+        for (let c = 0; c <= cols; c++) {
+          const p = points[r][c];
+          if (c === 0) ctx.moveTo(p.x, p.y);
+          else ctx.lineTo(p.x, p.y);
+        }
+        ctx.stroke();
+      }
+
+      for (let c = 0; c <= cols; c++) {
+        ctx.beginPath();
+        for (let r = 0; r <= rows; r++) {
+          const p = points[r][c];
+          if (r === 0) ctx.moveTo(p.x, p.y);
+          else ctx.lineTo(p.x, p.y);
+        }
+        ctx.stroke();
+      }
+
+      timeTick += 0.012;
+      requestAnimationFrame(drawWireframe);
+    }
+    drawWireframe();
+
+    // =========================================================================
+    // MINI TABLERO ANIMADO EN SLIDE 01
+    // =========================================================================
+    function renderCoverMiniGrid() {
+      const maze = [
+        ['S', 0, 0, 0, 0, 0],
+        [0, 1, 0, 1, 1, 0],
+        [0, 0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 0, 1],
+        [1, 1, 0, 1, 0, 0],
+        [0, 0, 0, 1, 0, 'E']
+      ];
+      const optimalSet = new Set(['1,0','2,0','3,0','3,1','3,2','3,3','3,4','4,4','5,4']);
+      const container = document.getElementById('coverMiniGrid');
+      let html = '';
+      for (let f = 0; f < 6; f++) {
+        for (let c = 0; c < 6; c++) {
+          const v = maze[f][c];
+          const key = `${f},${c}`;
+          if (v === 'S') {
+            html += `<div class="w-8 h-8 bg-[#FF5733] text-white font-bold code-font text-xs flex items-center justify-center">S</div>`;
+          } else if (v === 'E') {
+            html += `<div class="w-8 h-8 bg-emerald-500 text-black font-bold code-font text-xs flex items-center justify-center">E</div>`;
+          } else if (v === 1) {
+            html += `<div class="w-8 h-8 border border-white/15 text-white/30 code-font text-xs flex items-center justify-center">#</div>`;
+          } else if (optimalSet.has(key)) {
+            html += `<div class="w-8 h-8 border border-[#FF5733] bg-[#FF5733]/20 text-[#FF7A59] font-bold code-font text-xs flex items-center justify-center">*</div>`;
+          } else {
+            html += `<div class="w-8 h-8 border border-white/10 text-white/40 code-font text-xs flex items-center justify-center">.</div>`;
+          }
+        }
+      }
+      container.innerHTML = html;
+    }
+    renderCoverMiniGrid();
+
+    // =========================================================================
+    // INTERACTIVIDAD DE PSEUDOCÓDIGO EN SLIDE 05
+    // =========================================================================
+    let currentFlowStep = 1;
+    function stepFlowchart() {
+      currentFlowStep = (currentFlowStep % 5) + 1;
+      document.getElementById('flowStepLabel').textContent = `Paso ${currentFlowStep} / 5`;
+
+      for (let i = 1; i <= 5; i++) {
+        const lineEl = document.getElementById(`pl-${i}`);
+        if (lineEl) lineEl.classList.toggle('active-line', i === currentFlowStep);
+
+        const fnGroup = document.getElementById(`fn-${i}`);
+        if (fnGroup) {
+          fnGroup.querySelectorAll('rect, polygon').forEach(shape => {
+            if (i === currentFlowStep) {
+              shape.setAttribute('stroke', '#FF5733');
+              shape.setAttribute('stroke-width', '2.2');
+            } else {
+              shape.setAttribute('stroke', '#FFFFFF');
+              shape.setAttribute('stroke-width', '1.4');
+            }
+          });
+        }
+      }
+      if (magnifierActive) syncMagnifierContent();
+    }
+
+    // =========================================================================
+    // NAVEGACIÓN DE DIAPOSITIVAS
+    // =========================================================================
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const totalSlides = slides.length;
+    let currentSlide = 0;
+    let wheelLock = false;
+
+    const slideCounter = document.getElementById('slideCounter');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const dotsContainer = document.getElementById('dotsContainer');
+
+    slides.forEach((_, idx) => {
+      const dot = document.createElement('button');
+      dot.className = 'dot-indicator' + (idx === 0 ? ' active' : '');
+      dot.setAttribute('aria-label', `Ir a diapositiva ${idx + 1}`);
+      dot.onclick = () => goToSlide(idx);
+      dotsContainer.appendChild(dot);
+    });
+
+    function updateNavigationUI() {
+      slides.forEach((slide, idx) => {
+        slide.classList.toggle('active', idx === currentSlide);
+      });
+
+      const dots = dotsContainer.querySelectorAll('.dot-indicator');
+      dots.forEach((dot, idx) => {
+        dot.classList.toggle('active', idx === currentSlide);
+      });
+
+      slideCounter.textContent = `${String(currentSlide + 1).padStart(2, '0')} / ${String(totalSlides).padStart(2, '0')}`;
+      prevBtn.disabled = currentSlide === 0;
+      nextBtn.disabled = currentSlide === totalSlides - 1;
+      applySlideTheme(currentSlide);
+      if (magnifierActive) syncMagnifierContent();
+    }
+
+    function goToSlide(index) {
+      if (index < 0 || index >= totalSlides) return;
+      currentSlide = index;
+      updateNavigationUI();
+    }
+
+    function changeSlide(delta) {
+      goToSlide(currentSlide + delta);
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'l' || e.key === 'L' || e.key === 'm' || e.key === 'M') {
+        toggleMagnifier();
+        return;
+      }
+      if (e.key === 'Escape' && magnifierActive) {
+        toggleMagnifier(false);
+        return;
+      }
+      if (e.key === 'ArrowRight' || e.key === 'PageDown') changeSlide(1);
+      else if (e.key === 'ArrowLeft' || e.key === 'PageUp') changeSlide(-1);
+    });
+
+    window.addEventListener('wheel', (e) => {
+      // Si la lupa está activa, la rueda ajusta el zoom óptico en lugar de cambiar de diapositiva
+      if (magnifierActive) {
+        e.preventDefault();
+        const deltaZoom = e.deltaY < 0 ? 0.25 : -0.25;
+        magnifierZoom = Math.min(3.5, Math.max(1.6, +(magnifierZoom + deltaZoom).toFixed(2)));
+        updateMagnifierTransform();
+        return;
+      }
+      if (wheelLock) return;
+      if (Math.abs(e.deltaY) > 35) {
+        wheelLock = true;
+        if (e.deltaY > 0) changeSlide(1);
+        else changeSlide(-1);
+        setTimeout(() => { wheelLock = false; }, 600);
+      }
+    }, { passive: false });
+
+    // =========================================================================
+    // MOTOR DE LUPA ÓPTICA SUPERPUESTA EN VIVO (VECTOR CLONE)
+    // =========================================================================
+    let magnifierActive = false;
+    let magnifierZoom = 2.2;
+    let pointerX = window.innerWidth / 2;
+    let pointerY = window.innerHeight / 2;
+
+    const magnifierLens = document.getElementById('magnifierLens');
+    const magnifierCloneHost = document.getElementById('magnifierCloneHost');
+    const magnifierHud = document.getElementById('magnifierHud');
+    const lupaToggleBtn = document.getElementById('lupaToggleBtn');
+
+    function syncMagnifierContent() {
+      const activeSlideEl = slides[currentSlide];
+      if (!activeSlideEl) return;
+      magnifierCloneHost.innerHTML = '';
+      const cloned = activeSlideEl.cloneNode(true);
+      cloned.classList.add('active');
+      cloned.style.opacity = '1';
+      cloned.style.visibility = 'visible';
+      cloned.style.transform = 'none';
+      // Eliminar IDs duplicados dentro del clon
+      cloned.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+      magnifierCloneHost.appendChild(cloned);
+      magnifierLens.style.backgroundColor = SLIDE_THEMES[currentSlide]?.bg || '#090101';
+      updateMagnifierTransform();
+    }
+
+    function updateMagnifierTransform() {
+      const radius = 120; // Mitad de 240px
+      magnifierLens.style.left = `${pointerX}px`;
+      magnifierLens.style.top = `${pointerY}px`;
+      const tx = radius - pointerX * magnifierZoom;
+      const ty = radius - pointerY * magnifierZoom;
+      magnifierCloneHost.style.transform = `translate(${tx}px, ${ty}px) scale(${magnifierZoom})`;
+      magnifierHud.textContent = `${magnifierZoom.toFixed(1)}x · RUEDA ZOOM`;
+    }
+
+    function toggleMagnifier(forceState) {
+      magnifierActive = typeof forceState === 'boolean' ? forceState : !magnifierActive;
+      lupaToggleBtn.classList.toggle('active', magnifierActive);
+      document.body.classList.toggle('lupa-active', magnifierActive);
+
+      if (magnifierActive) {
+        syncMagnifierContent();
+        magnifierLens.classList.add('visible');
+      } else {
+        magnifierLens.classList.remove('visible');
+      }
+    }
+
+    window.addEventListener('mousemove', (e) => {
+      pointerX = e.clientX;
+      pointerY = e.clientY;
+      if (magnifierActive) {
+        updateMagnifierTransform();
+      }
+    });
+
+    window.addEventListener('touchmove', (e) => {
+      if (magnifierActive && e.touches.length > 0) {
+        pointerX = e.touches[0].clientX;
+        pointerY = e.touches[0].clientY;
+        updateMagnifierTransform();
+      }
+    }, { passive: true });
+
+    let touchStartX = 0;
+    window.addEventListener('touchstart', (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+
+    window.addEventListener('touchend', (e) => {
+      const diff = touchStartX - e.changedTouches[0].screenX;
+      if (Math.abs(diff) > 50) {
+        if (diff > 0) changeSlide(1);
+        else changeSlide(-1);
+      }
+    }, { passive: true });
+
+    updateNavigationUI();
+
+    // =========================================================================
+    // MOTOR DE ALGORITMOS EXACTOS DEL PROYECTO PYTHON (SLIDE 08 DEMO)
+    // =========================================================================
+    const DIRECCIONES = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+    const SCENARIOS = {
+      normal: {
+        title: 'MAPA_NORMAL (6×6)',
+        maze: [
+          ['S', 0, 0, 0, 0, 0],
+          [0, 1, 0, 1, 1, 0],
+          [0, 0, 0, 1, 0, 0],
+          [0, 0, 0, 0, 0, 1],
+          [1, 1, 0, 1, 0, 0],
+          [0, 0, 0, 1, 0, 'E']
+        ]
+      },
+      limite: {
+        title: 'MAPA_LIMITE (1×2)',
+        maze: [
+          ['S', 'E']
+        ]
+      },
+      sin_solucion: {
+        title: 'MAPA_SIN_SOLUCION (5×5)',
+        maze: [
+          ['S', 0, 0, 1, 0],
+          [1, 1, 0, 1, 0],
+          [0, 0, 0, 1, 1],
+          [0, 1, 0, 1, 'E'],
+          [0, 0, 0, 1, 1]
+        ]
+      }
+    };
+
+    let activeScenarioKey = 'normal';
+    let activeAlgoView = 'BFS';
+    let cachedResults = null;
+    let animTimers = [];
+
+    function buscarInicioFin(maze) {
+      let inicio = null, fin = null;
+      for (let f = 0; f < maze.length; f++) {
+        for (let c = 0; c < maze[0].length; c++) {
+          if (maze[f][c] === 'S') inicio = [f, c];
+          else if (maze[f][c] === 'E') fin = [f, c];
+        }
+      }
+      return { inicio, fin };
+    }
+
+    function reconstruirCamino(padre, fin) {
+      const ruta = [];
+      let actual = `${fin[0]},${fin[1]}`;
+      while (actual !== null) {
+        const [f, c] = actual.split(',').map(Number);
+        ruta.push([f, c]);
+        actual = padre.get(actual);
+      }
+      ruta.reverse();
+      return ruta;
+    }
+
+    function runBacktracking(maze) {
+      const { inicio, fin } = buscarInicioFin(maze);
+      const filas = maze.length, cols = maze[0].length;
+      const visitado = new Set();
+      const ruta = [];
+
+      function bt(f, c) {
+        if (f < 0 || f >= filas || c < 0 || c >= cols) return false;
+        const key = `${f},${c}`;
+        if (maze[f][c] === 1 || visitado.has(key)) return false;
+        visitado.add(key);
+        ruta.push([f, c]);
+        if (f === fin[0] && c === fin[1]) return true;
+        for (const [df, dc] of DIRECCIONES) {
+          if (bt(f + df, c + dc)) return true;
+        }
+        ruta.pop();
+        return false;
+      }
+
+      const ok = bt(inicio[0], inicio[1]);
+      return { ok, ruta, explorados: visitado.size };
+    }
+
+    function runDFS(maze) {
+      const { inicio, fin } = buscarInicioFin(maze);
+      const filas = maze.length, cols = maze[0].length;
+      const pila = [inicio];
+      const visitado = new Set([`${inicio[0]},${inicio[1]}`]);
+      const padre = new Map([[`${inicio[0]},${inicio[1]}`, null]]);
+      let explorados = 0;
+
+      while (pila.length > 0) {
+        const actual = pila.pop();
+        explorados++;
+        if (actual[0] === fin[0] && actual[1] === fin[1]) {
+          return { ok: true, ruta: reconstruirCamino(padre, fin), explorados };
+        }
+        for (const [df, dc] of DIRECCIONES) {
+          const nf = actual[0] + df, nc = actual[1] + dc;
+          const key = `${nf},${nc}`;
+          if (nf >= 0 && nf < filas && nc >= 0 && nc < cols) {
+            if (maze[nf][nc] !== 1 && !visitado.has(key)) {
+              visitado.add(key);
+              padre.set(key, `${actual[0]},${actual[1]}`);
+              pila.push([nf, nc]);
+            }
+          }
+        }
+      }
+      return { ok: false, ruta: [], explorados };
+    }
+
+    function runBFS(maze) {
+      const { inicio, fin } = buscarInicioFin(maze);
+      const filas = maze.length, cols = maze[0].length;
+      const cola = [inicio];
+      const visitado = new Set([`${inicio[0]},${inicio[1]}`]);
+      const padre = new Map([[`${inicio[0]},${inicio[1]}`, null]]);
+      let explorados = 0;
+
+      while (cola.length > 0) {
+        const actual = cola.shift();
+        explorados++;
+        if (actual[0] === fin[0] && actual[1] === fin[1]) {
+          return { ok: true, ruta: reconstruirCamino(padre, fin), explorados };
+        }
+        for (const [df, dc] of DIRECCIONES) {
+          const nf = actual[0] + df, nc = actual[1] + dc;
+          const key = `${nf},${nc}`;
+          if (nf >= 0 && nf < filas && nc >= 0 && nc < cols) {
+            if (maze[nf][nc] !== 1 && !visitado.has(key)) {
+              visitado.add(key);
+              padre.set(key, `${actual[0]},${actual[1]}`);
+              cola.push([nf, nc]);
+            }
+          }
+        }
+      }
+      return { ok: false, ruta: [], explorados };
+    }
+
+    function runDijkstra(maze) {
+      const { inicio, fin } = buscarInicioFin(maze);
+      const filas = maze.length, cols = maze[0].length;
+      const cola = [[0, inicio]];
+      const dist = new Map([[`${inicio[0]},${inicio[1]}`, 0]]);
+      const visitado = new Set();
+      const padre = new Map([[`${inicio[0]},${inicio[1]}`, null]]);
+      let explorados = 0;
+
+      while (cola.length > 0) {
+        cola.sort((a, b) => a[0] - b[0]);
+        const [costo, actual] = cola.shift();
+        const actKey = `${actual[0]},${actual[1]}`;
+        if (visitado.has(actKey)) continue;
+        visitado.add(actKey);
+        explorados++;
+        if (actual[0] === fin[0] && actual[1] === fin[1]) {
+          return { ok: true, ruta: reconstruirCamino(padre, fin), explorados };
+        }
+        for (const [df, dc] of DIRECCIONES) {
+          const nf = actual[0] + df, nc = actual[1] + dc;
+          const key = `${nf},${nc}`;
+          if (nf >= 0 && nf < filas && nc >= 0 && nc < cols) {
+            if (maze[nf][nc] !== 1 && !visitado.has(key)) {
+              const nuevoCosto = costo + 1;
+              if (nuevoCosto < (dist.has(key) ? dist.get(key) : Infinity)) {
+                dist.set(key, nuevoCosto);
+                padre.set(key, actKey);
+                cola.push([nuevoCosto, [nf, nc]]);
+              }
+            }
+          }
+        }
+      }
+      return { ok: false, ruta: [], explorados };
+    }
+
+    function heuristicaManhattan(a, b) {
+      return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+    }
+
+    function runAStar(maze) {
+      const { inicio, fin } = buscarInicioFin(maze);
+      const filas = maze.length, cols = maze[0].length;
+      const cola = [[heuristicaManhattan(inicio, fin), 0, inicio]];
+      const gCosto = new Map([[`${inicio[0]},${inicio[1]}`, 0]]);
+      const visitado = new Set();
+      const padre = new Map([[`${inicio[0]},${inicio[1]}`, null]]);
+      let explorados = 0;
+
+      while (cola.length > 0) {
+        cola.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+        const [, g, actual] = cola.shift();
+        const actKey = `${actual[0]},${actual[1]}`;
+        if (visitado.has(actKey)) continue;
+        visitado.add(actKey);
+        explorados++;
+        if (actual[0] === fin[0] && actual[1] === fin[1]) {
+          return { ok: true, ruta: reconstruirCamino(padre, fin), explorados };
+        }
+        for (const [df, dc] of DIRECCIONES) {
+          const nf = actual[0] + df, nc = actual[1] + dc;
+          const key = `${nf},${nc}`;
+          if (nf >= 0 && nf < filas && nc >= 0 && nc < cols) {
+            if (maze[nf][nc] !== 1 && !visitado.has(key)) {
+              const nuevoG = g + 1;
+              if (nuevoG < (gCosto.has(key) ? gCosto.get(key) : Infinity)) {
+                gCosto.set(key, nuevoG);
+                const fCosto = nuevoG + heuristicaManhattan([nf, nc], fin);
+                padre.set(key, actKey);
+                cola.push([fCosto, nuevoG, [nf, nc]]);
+              }
+            }
+          }
+        }
+      }
+      return { ok: false, ruta: [], explorados };
+    }
+
+    function selectScenario(key) {
+      activeScenarioKey = key;
+      document.querySelectorAll('.scenario-btn').forEach(btn => {
+        btn.className = 'scenario-btn px-3 py-1.5 text-xs font-bold border border-white/30 text-white hover:bg-white/10 cursor-pointer transition';
+      });
+      document.getElementById(`btn-${key}`).className = 'scenario-btn px-3 py-1.5 text-xs font-bold bg-[#FF5733] text-white cursor-pointer transition';
+
+      const maze = SCENARIOS[key].maze;
+      cachedResults = {
+        BT: runBacktracking(maze),
+        DFS: runDFS(maze),
+        BFS: runBFS(maze),
+        DIJ: runDijkstra(maze),
+        AST: runAStar(maze)
+      };
+
+      renderScenario(true);
+    }
+
+    function showRouteFor(algo) {
+      activeAlgoView = algo;
+      document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.className = 'view-btn px-2 py-1 text-[10.5px] code-font font-bold border border-white/25 text-white cursor-pointer';
+      });
+      document.getElementById(`view-${algo}`).className = 'view-btn px-2 py-1 text-[10.5px] code-font font-bold bg-[#FF5733] text-white cursor-pointer';
+      renderScenario(true);
+    }
+
+    function replayPathAnimation() {
+      renderScenario(true);
+    }
+
+    function renderScenario(animate = false) {
+      animTimers.forEach(t => clearTimeout(t));
+      animTimers = [];
+
+      const scenario = SCENARIOS[activeScenarioKey];
+      const maze = scenario.maze;
+      document.getElementById('mazeTitle').textContent = scenario.title;
+
+      const selectedRes = cachedResults[activeAlgoView];
+      const cols = maze[0].length;
+      const cellSize = cols === 2 ? 'w-16 h-16 text-lg' : cols === 5 ? 'w-10 h-10 text-sm' : 'w-9 h-9 text-xs';
+      let gridHTML = `<div class="grid gap-1.5" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));">`;
+
+      for (let f = 0; f < maze.length; f++) {
+        for (let c = 0; c < cols; c++) {
+          const val = maze[f][c];
+          const cellId = `cell-${f}-${c}`;
+          if (val === 'S') {
+            gridHTML += `<div id="${cellId}" class="maze-cell ${cellSize} bg-[#FF5733] text-white font-extrabold code-font flex items-center justify-center">S</div>`;
+          } else if (val === 'E') {
+            gridHTML += `<div id="${cellId}" class="maze-cell ${cellSize} bg-emerald-500 text-black font-extrabold code-font flex items-center justify-center">E</div>`;
+          } else if (val === 1) {
+            gridHTML += `<div id="${cellId}" class="maze-cell ${cellSize} border border-white/15 bg-white/[0.03] text-white/30 font-bold code-font flex items-center justify-center">#</div>`;
+          } else {
+            gridHTML += `<div id="${cellId}" class="maze-cell ${cellSize} border border-white/15 text-white/55 code-font flex items-center justify-center">.</div>`;
+          }
+        }
+      }
+      gridHTML += `</div>`;
+      document.getElementById('mazeGridContainer').innerHTML = gridHTML;
+
+      // Animar paso a paso la ruta encontrada
+      if (selectedRes.ok) {
+        selectedRes.ruta.forEach(([f, c], stepIdx) => {
+          if (maze[f][c] === 'S' || maze[f][c] === 'E') return;
+          const delay = animate ? stepIdx * 45 : 0;
+          const timer = setTimeout(() => {
+            const el = document.getElementById(`cell-${f}-${c}`);
+            if (el) {
+              el.textContent = '*';
+              el.className = `maze-cell ${cellSize} border border-[#FF7A59] bg-[#FF5733]/25 text-[#FF7A59] font-extrabold code-font flex items-center justify-center scale-105`;
+              if (magnifierActive) syncMagnifierContent();
+            }
+          }, delay);
+          animTimers.push(timer);
+        });
+      }
+
+      const rows = [
+        { name: 'Backtracking', data: cachedResults.BT, tag: 'Rodeos' },
+        { name: 'DFS (Pila)', data: cachedResults.DFS, tag: 'Subóptimo' },
+        { name: 'BFS (FIFO)', data: cachedResults.BFS, tag: 'ÓPTIMO (Principal)' },
+        { name: 'Dijkstra (Heap)', data: cachedResults.DIJ, tag: 'Óptimo' },
+        { name: 'A* (Manhattan)', data: cachedResults.AST, tag: 'Óptimo · Menos nodos' }
+      ];
+
+      let tbodyHTML = '';
+      rows.forEach(r => {
+        const pasos = r.data.ok ? r.data.ruta.length - 1 : 0;
+        const isBFS = r.name.startsWith('BFS');
+        tbodyHTML += `
+          <tr class="${isBFS ? 'bg-[#FF5733]/15 font-bold' : ''}">
+            <td class="py-2 text-white">${r.name}</td>
+            <td class="py-2 ${r.data.ok ? 'text-emerald-400' : 'text-rose-400'}">${r.data.ok ? 'SI' : 'NO'}</td>
+            <td class="py-2 text-white">${pasos}</td>
+            <td class="py-2 text-white/85">${r.data.explorados}</td>
+            <td class="py-2 text-[11px] ${isBFS ? 'text-[#FF7A59]' : 'text-white/65'}">${r.data.ok ? r.tag : 'Bloqueado'}</td>
+          </tr>
+        `;
+      });
+      document.getElementById('comparisonTableBody').innerHTML = tbodyHTML;
+
+      const consoleLabel = document.getElementById('consoleLabel');
+      const consoleOutput = document.getElementById('consoleOutput');
+      const stepsBadge = document.getElementById('stepsBadge');
+
+      const ALGO_NAMES = { BFS: 'BFS', AST: 'A*', DIJ: 'Dijkstra', DFS: 'DFS', BT: 'Backtracking' };
+      if (selectedRes.ok) {
+        const pasos = selectedRes.ruta.length - 1;
+        consoleLabel.textContent = `Consola · Ruta (${ALGO_NAMES[activeAlgoView] || activeAlgoView})`;
+        stepsBadge.textContent = `${pasos} paso${pasos === 1 ? '' : 's'}`;
+        stepsBadge.className = 'text-emerald-400 font-bold';
+        consoleOutput.textContent = `Coordenadas: [${selectedRes.ruta.map(p => `(${p[0]}, ${p[1]})`).join(', ')}]`;
+      } else {
+        consoleLabel.textContent = 'Validación · Caso Sin Solución';
+        stepsBadge.textContent = '0 pasos';
+        stepsBadge.className = 'text-rose-400 font-bold';
+        consoleOutput.textContent = "Aviso: la salida 'E' es inaccesible, este laberinto no tiene solucion.";
+      }
+      if (magnifierActive) syncMagnifierContent();
+    }
+
+    selectScenario('normal');
+  </script>
+</body>
+</html>
