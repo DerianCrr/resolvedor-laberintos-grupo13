@@ -1,0 +1,2070 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Resolvedor de Laberintos 2D — Grupo 13 "LOS WASAA" (UPN)</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts: Condensed Display (Bebas Neue), Inter, and JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- PyScript (Python in Browser via WebAssembly) -->
+  <link rel="stylesheet" href="https://pyscript.net/releases/2024.11.1/core.css" />
+  <script type="module" src="https://pyscript.net/releases/2024.11.1/core.js"></script>
+
+  <style>
+    :root {
+      --bg-obsidian: #110302;
+      --bg-crimson-deep: #240604;
+      --accent-coral: #ff5b2e;
+      --accent-coral-hover: #ff6d3f;
+      --accent-ember: #f2542d;
+      --text-primary: #ffffff;
+      --text-muted: #b8a6a2;
+      --border-hairline: rgba(255, 255, 255, 0.14);
+      --border-coral: rgba(255, 91, 46, 0.55);
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    .selectable-code {
+      user-select: text;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      background: radial-gradient(circle at 22% 58%, #380b07 0%, #1c0503 48%, #120403 100%);
+      color: var(--text-primary);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+    }
+
+    .font-display-cond {
+      font-family: 'Bebas Neue', Impact, 'Arial Narrow', sans-serif;
+      letter-spacing: 0.02em;
+      line-height: 0.92;
+    }
+
+    .font-mono-code {
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+    }
+
+    /* Perspective crimson wireframe grid matching the slide backdrop */
+    .perspective-grid {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.42;
+      background-image:
+        repeating-linear-gradient(
+          90deg,
+          rgba(255, 85, 45, 0.14) 0px,
+          rgba(255, 85, 45, 0.14) 1px,
+          transparent 1px,
+          transparent 56px
+        ),
+        repeating-linear-gradient(
+          0deg,
+          rgba(255, 85, 45, 0.11) 0px,
+          rgba(255, 85, 45, 0.11) 1px,
+          transparent 1px,
+          transparent 56px
+        );
+      transform: perspective(760px) rotateX(24deg) rotateZ(-8deg) scale(1.22) translate(8%, -4%);
+      transform-origin: center center;
+    }
+
+    .vignette-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      background: radial-gradient(circle at 65% 40%, transparent 25%, rgba(9, 2, 2, 0.72) 100%);
+    }
+
+    .app-shell {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      height: 100%;
+      max-height: 100dvh;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      padding: 10px 22px 10px 22px;
+      gap: 8px;
+    }
+
+    @media (max-width: 768px) {
+      .app-shell {
+        padding: 10px 14px 12px 14px;
+        gap: 8px;
+      }
+    }
+
+    /* Clean borderless layout without boxed cards */
+    .frame-hairline {
+      background: transparent;
+      border: none;
+      border-radius: 0;
+    }
+
+    .btn-coral {
+      background: linear-gradient(135deg, #ff5b2e 0%, #e54316 100%);
+      color: #ffffff;
+      border: 1px solid rgba(255, 148, 112, 0.5);
+      transition: transform 0.12s ease, filter 0.12s ease;
+    }
+
+    .btn-coral:hover {
+      filter: brightness(1.08);
+      transform: translateY(-1px);
+    }
+
+    .btn-coral:active {
+      transform: translateY(0);
+    }
+
+    .btn-nav {
+      background: transparent;
+      color: #d6c3be;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      transition: all 0.12s ease;
+      white-space: nowrap;
+    }
+
+    .btn-nav:hover {
+      color: #ffffff;
+      border-color: rgba(255, 91, 46, 0.65);
+    }
+
+    .btn-nav.active {
+      background: rgba(255, 91, 46, 0.16);
+      color: #ffffff;
+      border-color: #ff5b2e;
+    }
+
+    /* Compact custom scrollbars strictly inside small inner containers */
+    .inner-scroll::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .inner-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .inner-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255, 91, 46, 0.45);
+      border-radius: 3px;
+    }
+
+    .maze-grid-wrap {
+      display: grid;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .maze-cell {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      border-radius: 2px;
+      transition: background-color 0.12s ease;
+    }
+
+    .cell-wall {
+      background: rgba(43, 9, 7, 0.72);
+      border: 1px solid rgba(255, 91, 46, 0.22);
+      color: rgba(255, 130, 95, 0.42);
+    }
+
+    .cell-free {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      color: rgba(255, 255, 255, 0.24);
+    }
+
+    .cell-path {
+      background: rgba(255, 91, 46, 0.3);
+      border: 1px solid rgba(255, 112, 67, 0.8);
+      color: #ffd3c4;
+    }
+
+    .cell-start {
+      background: #ff5b2e;
+      border: 1px solid #ff9e80;
+      color: #ffffff;
+    }
+
+    .cell-end {
+      background: #ffffff;
+      border: 1px solid #ff5b2e;
+      color: #160403;
+    }
+
+    .status-dot-pulse {
+      animation: pulseDot 2s infinite;
+    }
+
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.82); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Decorative perspective wireframe grid & dark vignette -->
+  <div class="perspective-grid" aria-hidden="true"></div>
+  <div class="vignette-overlay" aria-hidden="true"></div>
+
+  <!-- Main Single-Viewport Shell (100dvh, zero page scroll) -->
+  <div class="app-shell">
+    <!-- TOP BAR -->
+    <header class="flex flex-col gap-1.5 border-b border-white/15 pb-1.5 shrink-0">
+      <div class="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono-code tracking-[0.14em] uppercase text-[#c7b2ac]">
+        <div class="flex items-center gap-2 truncate">
+          <span class="inline-block w-1.5 h-1.5 bg-[#ff5b2e] rounded-full status-dot-pulse"></span>
+          <span class="truncate">UNIVERSIDAD PRIVADA DEL NORTE (UPN) · ANÁLISIS DE ALGORITMOS</span>
+        </div>
+        <div class="flex items-center gap-3 shrink-0">
+          <span class="text-[#e8d8d3] font-medium">GRUPO 13 · "LOS WASAA" · 30/11/2026</span>
+        </div>
+      </div>
+
+      <!-- 1-Click Section Navigation Buttons -->
+      <nav aria-label="Navegación de secciones" class="flex items-center gap-1.5 overflow-x-auto py-0.5">
+        <button data-section="caratula" class="nav-btn btn-nav active px-2 py-0.5 rounded text-[10px] font-mono-code uppercase tracking-wider cursor-pointer">
+          01 · Carátula
+        </button>
+        <button data-section="caso1" class="nav-btn btn-nav px-2 py-0.5 rounded text-[10px] font-mono-code uppercase tracking-wider cursor-pointer">
+          02 · Caso Normal (6×6)
+        </button>
+        <button data-section="caso2" class="nav-btn btn-nav px-2 py-0.5 rounded text-[10px] font-mono-code uppercase tracking-wider cursor-pointer">
+          03 · Caso Límite (1×2)
+        </button>
+        <button data-section="caso3" class="nav-btn btn-nav px-2 py-0.5 rounded text-[10px] font-mono-code uppercase tracking-wider cursor-pointer">
+          04 · Sin Solución (5×5)
+        </button>
+        <button data-section="caso4" class="nav-btn btn-nav px-2 py-0.5 rounded text-[10px] font-mono-code uppercase tracking-wider cursor-pointer">
+          05 · Comparativa (10×10 / 25×25 / 40×40)
+        </button>
+        <button data-section="caso5" class="nav-btn btn-nav px-2 py-0.5 rounded text-[10px] font-mono-code uppercase tracking-wider cursor-pointer">
+          06 · Laberinto Manual
+        </button>
+        <button data-section="codigo" class="nav-btn btn-nav px-2 py-0.5 rounded text-[10px] font-mono-code uppercase tracking-wider ml-auto cursor-pointer">
+          07 · Código Python (v3)
+        </button>
+      </nav>
+    </header>
+
+    <!-- CENTER STAGE (All sections fit inside remaining height with overflow-hidden) -->
+    <main class="relative w-full h-full min-h-0 overflow-hidden">
+
+      <!-- SECTION 01: CARÁTULA -->
+      <section id="sec-caratula" class="app-section w-full h-full grid grid-cols-1 lg:grid-cols-12 items-center gap-8 px-1">
+        <!-- Left Hero Column -->
+        <div class="lg:col-span-7 flex flex-col justify-center gap-4 min-w-0">
+          <h1 class="font-display-cond uppercase text-[52px] sm:text-[68px] xl:text-[84px] tracking-tight">
+            <span class="block text-white">RESOLVEDOR DE</span>
+            <span class="block text-[#ff5b2e]">LABERINTOS 2D</span>
+          </h1>
+
+          <p class="text-sm sm:text-base text-[#d5c3be] max-w-xl leading-relaxed">
+            Evaluación comparativa de estrategias de búsqueda (<strong class="text-white font-semibold">Backtracking, DFS, BFS, Dijkstra y A*</strong>) para hallar la ruta óptima en matrices bidimensionales.
+          </p>
+
+          <div class="pt-1">
+            <div class="text-xs sm:text-sm leading-snug border-l-2 border-[#ff5b2e] pl-3.5">
+              <div class="text-[#c8b5b0]">
+                Docente: <strong class="text-white font-semibold">Mg. Giancarlo D. Calderon Pereda</strong>
+              </div>
+              <div class="text-[#9e8983] font-mono-code text-xs mt-1">
+                Clase / Sección: 21527 · Caso 01
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Roster Column -->
+        <div class="lg:col-span-5 flex flex-col justify-center min-w-0">
+          <div class="w-full">
+            <div class="flex items-center justify-between text-[11px] font-mono-code tracking-[0.16em] uppercase text-[#a6908a] pb-2.5 border-b border-white/15">
+              <span>INTEGRANTES DEL EQUIPO</span>
+              <span>05 MIEMBROS</span>
+            </div>
+
+            <ul class="divide-y divide-white/12 text-xs sm:text-sm">
+              <li class="py-2 flex items-center gap-3.5">
+                <span class="font-mono-code text-[#ff5b2e] font-bold text-xs">01</span>
+                <span class="text-[#f3e7e4] font-medium truncate">Joseph Esteban Núñez Castro</span>
+              </li>
+              <li class="py-2 flex items-center gap-3.5">
+                <span class="font-mono-code text-[#ff5b2e] font-bold text-xs">02</span>
+                <span class="text-[#f3e7e4] font-medium truncate">Derian Jacsel Carrasco Canayo</span>
+              </li>
+              <li class="py-2 flex items-center gap-3.5">
+                <span class="font-mono-code text-[#ff5b2e] font-bold text-xs">03</span>
+                <span class="text-[#f3e7e4] font-medium truncate">Adalberto Rafael Timana Ruiz</span>
+              </li>
+              <li class="py-2 flex items-center gap-3.5">
+                <span class="font-mono-code text-[#ff5b2e] font-bold text-xs">04</span>
+                <span class="text-[#f3e7e4] font-medium truncate">Josimar Sebastián Jauregui Flores</span>
+              </li>
+              <li class="py-2 flex items-center gap-3.5 border-b border-white/12">
+                <span class="font-mono-code text-[#ff5b2e] font-bold text-xs">05</span>
+                <span class="text-[#f3e7e4] font-medium truncate">Fabio Farfan Llerena</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- SOLVER WORKSPACE SECTION (Shared interactive stage for Caso 1, 2, 3, and 5) -->
+      <section id="sec-solver" class="app-section hidden w-full h-full grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-0 overflow-hidden">
+        <!-- Left Column: Visual Maze Grid + Legend + Manual Builder (when in Caso 5) -->
+        <div class="lg:col-span-6 frame-hairline py-1 lg:pr-4 lg:border-r lg:border-white/15 flex flex-col justify-between min-h-0 overflow-hidden">
+          <div class="flex flex-wrap items-center justify-between gap-1.5 pb-1.5 border-b border-white/15 shrink-0">
+            <div>
+              <div id="solver-tag" class="text-[10px] font-mono-code tracking-[0.16em] uppercase text-[#ff5b2e]">
+                PRUEBA ALGORÍTMICA
+              </div>
+              <h2 id="solver-title" class="font-display-cond text-xl sm:text-2xl text-white tracking-wide">
+                CASO NORMAL (6×6)
+              </h2>
+            </div>
+
+            <!-- Algorithm Path Selector + Regenerate/Run -->
+            <div class="flex flex-wrap items-center gap-1">
+              <button data-algo-path="BFS" class="algo-path-btn btn-nav active px-2 py-0.5 rounded text-[10px] font-mono-code cursor-pointer">BFS</button>
+              <button data-algo-path="A*" class="algo-path-btn btn-nav px-2 py-0.5 rounded text-[10px] font-mono-code cursor-pointer">A*</button>
+              <button data-algo-path="Dijkstra" class="algo-path-btn btn-nav px-2 py-0.5 rounded text-[10px] font-mono-code cursor-pointer">Dijkstra</button>
+              <button data-algo-path="DFS" class="algo-path-btn btn-nav px-2 py-0.5 rounded text-[10px] font-mono-code cursor-pointer">DFS</button>
+              <button data-algo-path="Backtracking" class="algo-path-btn btn-nav px-2 py-0.5 rounded text-[10px] font-mono-code cursor-pointer">Backtracking</button>
+              <button id="btn-rerun-solver" class="btn-coral px-2.5 py-0.5 rounded text-[10px] font-mono-code font-semibold ml-1 cursor-pointer">
+                Generar Nuevo
+              </button>
+            </div>
+          </div>
+
+          <!-- Manual Maze Builder (Only visible in Caso 5) -->
+          <div id="manual-controls" class="hidden flex-col gap-1.5 py-2 border-b border-white/15 shrink-0 text-xs">
+            <div class="flex flex-wrap items-center gap-2">
+              <label class="flex items-center gap-1 font-mono-code text-[11px] text-[#cbb6b0]">
+                Filas:
+                <input id="manual-rows" type="number" min="1" max="12" value="5" class="w-12 px-1.5 py-0.5 rounded bg-transparent border border-white/25 text-white font-mono-code" />
+              </label>
+              <label class="flex items-center gap-1 font-mono-code text-[11px] text-[#cbb6b0]">
+                Cols:
+                <input id="manual-cols" type="number" min="1" max="12" value="5" class="w-12 px-1.5 py-0.5 rounded bg-transparent border border-white/25 text-white font-mono-code" />
+              </label>
+              <button id="btn-build-grid" class="btn-nav px-2.5 py-0.5 rounded text-[11px] font-mono-code cursor-pointer">
+                Generar Cuadrícula
+              </button>
+              <span class="text-[11px] font-mono-code text-[#ff8a65]">
+                Clic en celda: 0 → 1 → S → E
+              </span>
+            </div>
+            <div id="manual-validation-msg" class="text-[11px] font-mono-code text-[#ffab91] hidden"></div>
+          </div>
+
+          <!-- Interactive 2D Maze Canvas/Grid Area -->
+          <div class="flex-1 min-h-0 flex items-center justify-center py-2">
+            <div id="maze-board-container" class="maze-grid-wrap"></div>
+          </div>
+
+          <!-- Legend & Route Coordinates Footer -->
+          <div class="pt-1.5 border-t border-white/15 flex flex-wrap items-center justify-between gap-1.5 text-[10px] font-mono-code shrink-0">
+            <div class="flex flex-wrap items-center gap-3 text-[#cbb6b0]">
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-xs cell-start inline-block"></span> S Inicio</span>
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-xs cell-end inline-block"></span> E Salida</span>
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-xs cell-wall inline-block"></span> # Muro (1)</span>
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-xs cell-path inline-block"></span> * Ruta (0)</span>
+            </div>
+            <div id="solver-route-summary" class="text-[#ff8a65] truncate max-w-full">
+              Ruta BFS: --
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Algorithm Comparison Table + Terminal Output -->
+        <div class="lg:col-span-6 flex flex-col gap-3 min-h-0">
+          <!-- Comparison Table -->
+          <div class="frame-hairline py-1 flex flex-col min-h-0 flex-1 overflow-hidden">
+            <div class="flex items-center justify-between pb-2 border-b border-white/15 shrink-0">
+              <span class="text-[11px] font-mono-code tracking-[0.15em] uppercase text-[#ff5b2e] font-semibold">
+                TABLA COMPARATIVA DE ALGORITMOS
+              </span>
+              <span id="solver-status-badge" class="text-[11px] font-mono-code px-2 py-0.5 rounded border border-white/20 text-[#e6d5d0]">
+                LISTO
+              </span>
+            </div>
+
+            <div class="overflow-auto inner-scroll flex-1 mt-2">
+              <table class="w-full text-left border-collapse font-mono-code text-xs">
+                <thead>
+                  <tr class="text-[10px] uppercase tracking-wider text-[#a9938d] border-b border-white/15">
+                    <th class="py-1 pr-2">Algoritmo</th>
+                    <th class="py-1 px-2">Salida</th>
+                    <th class="py-1 px-2">Pasos</th>
+                    <th class="py-1 px-2">Explorados</th>
+                    <th class="py-1 pl-2 text-right">Tiempo (ms)</th>
+                  </tr>
+                </thead>
+                <tbody id="algo-table-body" class="divide-y divide-white/12 text-[#f2e5e1]">
+                  <!-- Populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Console / Coordenadas Log Box -->
+          <div class="frame-hairline pt-1.5 border-t border-white/15 flex flex-col h-24 sm:h-28 shrink-0">
+            <div class="flex items-center justify-between text-[10px] font-mono-code uppercase tracking-wider text-[#a9938d] pb-1 border-b border-white/15">
+              <span>SALIDA DE EJECUCIÓN · COORDENADAS</span>
+              <span id="solver-dims-label">6×6</span>
+            </div>
+            <pre id="solver-log-output" class="selectable-code inner-scroll flex-1 overflow-auto mt-1.5 font-mono-code text-[11px] text-[#e7d4ce] whitespace-pre-wrap leading-relaxed"></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 05: COMPARATIVA DE RENDIMIENTO (10x10, 25x25, 40x40) + VER MAPA GENERADO -->
+      <section id="sec-caso4" class="app-section hidden w-full h-full flex flex-col gap-2 min-h-0 overflow-hidden">
+        <div class="pb-1.5 border-b border-white/15 flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div>
+            <h2 class="font-display-cond text-xl sm:text-2xl text-white">
+              COMPARATIVA DE RENDIMIENTO ALEATORIA CON SOLUCIÓN (10×10, 25×25 Y 40×40)
+            </h2>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button id="btn-open-generated-map" class="btn-nav px-3 py-1.5 rounded text-xs font-mono-code font-semibold uppercase tracking-wider cursor-pointer border-[#ff5b2e]/60 text-[#ff8a65]">
+              Ver Mapa Generado
+            </button>
+            <button id="btn-run-benchmark" class="btn-coral px-3.5 py-1.5 rounded text-xs font-mono-code font-bold uppercase tracking-wider cursor-pointer">
+              Generar Nuevas Semillas
+            </button>
+          </div>
+        </div>
+
+        <!-- 3 Hairline-framed Benchmark Tables -->
+        <div id="benchmark-cards-grid" class="grid grid-cols-1 md:grid-cols-3 gap-5 md:divide-x md:divide-white/15 flex-1 min-h-0">
+          <!-- 3 Benchmark tables populated dynamically -->
+        </div>
+
+        <!-- Generated Maze Visual Inspector View -->
+        <div id="benchmark-map-inspector" class="hidden flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-3 overflow-hidden">
+          <div class="lg:col-span-8 frame-hairline py-1 lg:pr-4 lg:border-r lg:border-white/15 flex flex-col min-h-0 overflow-hidden">
+            <div class="flex flex-wrap items-center justify-between gap-1.5 pb-1.5 border-b border-white/15 shrink-0">
+              <div class="flex items-center gap-1.5">
+                <span class="text-[10px] font-mono-code uppercase tracking-wider text-[#a9938d] mr-1">Tamaño:</span>
+                <button id="bench-seed-btn-0" data-bench-idx="0" class="bench-seed-btn btn-nav active px-2.5 py-0.5 rounded text-[11px] font-mono-code cursor-pointer">10×10</button>
+                <button id="bench-seed-btn-1" data-bench-idx="1" class="bench-seed-btn btn-nav px-2.5 py-0.5 rounded text-[11px] font-mono-code cursor-pointer">25×25</button>
+                <button id="bench-seed-btn-2" data-bench-idx="2" class="bench-seed-btn btn-nav px-2.5 py-0.5 rounded text-[11px] font-mono-code cursor-pointer">40×40</button>
+              </div>
+              <button id="btn-close-generated-map" class="btn-nav px-2.5 py-0.5 rounded text-[11px] font-mono-code cursor-pointer">
+                ← Volver a Tablas
+              </button>
+            </div>
+
+            <div class="flex-1 min-h-0 flex items-center justify-center py-2">
+              <div id="bench-maze-container" class="maze-grid-wrap"></div>
+            </div>
+
+            <div class="pt-1.5 border-t border-white/15 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono-code shrink-0">
+              <div class="flex items-center gap-3 text-[#cbb6b0]">
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-xs cell-start inline-block"></span> S Inicio</span>
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-xs cell-end inline-block"></span> E Salida</span>
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-xs cell-wall inline-block"></span> # Muro</span>
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-xs cell-path inline-block"></span> * Ruta</span>
+              </div>
+              <span id="bench-map-meta" class="text-[#ff8a65]">10×10 · Ruta óptima BFS</span>
+            </div>
+          </div>
+
+          <div class="lg:col-span-4 frame-hairline py-1 flex flex-col justify-between min-h-0 overflow-hidden">
+            <div class="flex flex-col gap-2 min-h-0 flex-1">
+              <div class="flex items-center justify-between pb-1.5 border-b border-white/15 shrink-0">
+                <span class="text-[11px] font-mono-code uppercase tracking-wider text-[#ff5b2e] font-semibold">
+                  MÉTRICAS DEL MAPA
+                </span>
+                <span id="bench-inspector-badge" class="text-[10px] font-mono-code text-[#d6c2bc]">SEED</span>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-1 shrink-0">
+                <span class="text-[10px] font-mono-code text-[#a9938d] mr-1">Ruta:</span>
+                <button data-bench-algo="BFS" class="bench-algo-btn btn-nav active px-2 py-0.5 rounded text-[10px] font-mono-code cursor-pointer">BFS</button>
+                <button data-bench-algo="A*" class="bench-algo-btn btn-nav px-2 py-0.5 rounded text-[10px] font-mono-code cursor-pointer">A*</button>
+                <button data-bench-algo="Dijkstra" class="bench-algo-btn btn-nav px-2 py-0.5 rounded text-[10px] font-mono-code cursor-pointer">Dijkstra</button>
+                <button data-bench-algo="DFS" class="bench-algo-btn btn-nav px-2 py-0.5 rounded text-[10px] font-mono-code cursor-pointer">DFS</button>
+                <button data-bench-algo="Backtracking" class="bench-algo-btn btn-nav px-2 py-0.5 rounded text-[10px] font-mono-code cursor-pointer">BT</button>
+              </div>
+
+              <div class="overflow-auto inner-scroll flex-1">
+                <table class="w-full text-left border-collapse font-mono-code text-[11px]">
+                  <thead>
+                    <tr class="text-[10px] uppercase text-[#a9938d] border-b border-white/15">
+                      <th class="py-1 pr-1">Alg.</th>
+                      <th class="py-1 px-1">Sal.</th>
+                      <th class="py-1 px-1">Pasos</th>
+                      <th class="py-1 px-1">Expl.</th>
+                      <th class="py-1 pl-1 text-right">ms</th>
+                    </tr>
+                  </thead>
+                  <tbody id="bench-inspector-tbody" class="divide-y divide-white/12 text-[#f2e5e1]"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="pt-2 border-t border-white/15 text-[11px] font-mono-code text-[#cbb6b0] shrink-0">
+              Generado mediante <code class="text-[#ff8a65]">generar_laberinto(..., con_solucion=True, prob_muro=0.28)</code> verificado con <code class="text-[#ff8a65]">existe_camino_bfs()</code>.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 07: CÓDIGO PYTHON INTACTO -->
+      <section id="sec-codigo" class="app-section hidden w-full h-full flex flex-col gap-2.5 min-h-0">
+        <div class="pb-1.5 border-b border-white/15 flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div class="flex items-center gap-3">
+            <span class="font-mono-code text-xs font-semibold text-[#ff5b2e]">resolvedor_laberintosv3.py</span>
+            <span class="text-[11px] font-mono-code text-[#b59f99]">Código original íntegro · Embebido en &lt;script type="py"&gt;</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="copy-feedback" class="text-[11px] font-mono-code text-[#ff8a65] opacity-0 transition-opacity">
+              ¡Copiado al portapapeles!
+            </span>
+            <button id="btn-copy-python" class="btn-coral px-3 py-1 rounded text-[11px] font-mono-code font-semibold cursor-pointer">
+              Copiar Código
+            </button>
+          </div>
+        </div>
+
+        <div class="frame-hairline py-1 flex-1 min-h-0 overflow-hidden flex flex-col">
+          <pre id="python-source-viewer" class="selectable-code inner-scroll flex-1 overflow-auto font-mono-code text-[11px] sm:text-xs leading-relaxed text-[#f7eae6] p-1"></pre>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- =====================================================================
+       EXACT UNMODIFIED PYTHON SOURCE FROM resolvedor_laberintosv3.py
+       Preserved verbatim as a data block & rendered in the Code Viewer.
+       ===================================================================== -->
+  <script id="raw-python-source" type="text/plain">from collections import deque
+import heapq
+import random
+import time
+
+DIRECCIONES = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+
+MAPA_LIMITE = [
+    ["S", "E"],
+]
+
+
+def existe_camino_bfs(maze):
+    inicio, fin = buscar_inicio_fin(maze)
+    if inicio is None or fin is None:
+        return False
+
+    filas = len(maze)
+    cols = len(maze[0])
+    cola = deque([inicio])
+    visitado = {inicio}
+
+    while cola:
+        actual = cola.popleft()
+        if actual == fin:
+            return True
+
+        f, c = actual
+        for df, dc in DIRECCIONES:
+            nf, nc = f + df, c + dc
+            if 0 <= nf < filas and 0 <= nc < cols:
+                if maze[nf][nc] != 1 and (nf, nc) not in visitado:
+                    visitado.add((nf, nc))
+                    cola.append((nf, nc))
+
+    return False
+
+
+def generar_laberinto(filas, cols, semilla=None, con_solucion=True, prob_muro=0.28):
+    if semilla is None:
+        semilla = random.SystemRandom().randint(1, 10**9)
+    rng = random.Random(semilla)
+
+    while True:
+        maze = [
+            [1 if rng.random() < prob_muro else 0 for _ in range(cols)]
+            for _ in range(filas)
+        ]
+
+        if con_solucion:
+            f, c = 0, 0
+            maze[f][c] = 0
+            while f < filas - 1 or c < cols - 1:
+                if f == filas - 1:
+                    c += 1
+                elif c == cols - 1:
+                    f += 1
+                elif rng.random() < 0.5:
+                    f += 1
+                else:
+                    c += 1
+                maze[f][c] = 0
+
+        maze[0][0] = "S"
+        maze[filas - 1][cols - 1] = "E"
+
+        if filas == 1 and cols == 1:
+            return maze, semilla
+
+        tiene_camino = existe_camino_bfs(maze)
+        if con_solucion and tiene_camino:
+            return maze, semilla
+        if not con_solucion and not tiene_camino:
+            return maze, semilla
+
+
+def buscar_inicio_fin(maze):
+    inicio = None
+    fin = None
+
+    for f in range(len(maze)):
+        for c in range(len(maze[0])):
+            if maze[f][c] == "S":
+                inicio = (f, c)
+            elif maze[f][c] == "E":
+                fin = (f, c)
+            if inicio is not None and fin is not None:
+                return inicio, fin
+
+    return inicio, fin
+
+
+def reconstruir_camino(padre, fin):
+    ruta = []
+    actual = fin
+
+    while actual is not None:
+        ruta.append(actual)
+        actual = padre[actual]
+
+    ruta.reverse()
+    return ruta
+
+
+def resolver_backtracking(maze, f, c, fin, visitado, ruta):
+    filas = len(maze)
+    cols = len(maze[0])
+
+    if not (0 <= f < filas and 0 <= c < cols):
+        return False
+
+    if maze[f][c] == 1 or (f, c) in visitado:
+        return False
+
+    visitado.add((f, c))
+    ruta.append((f, c))
+
+    if (f, c) == fin:
+        return True
+
+    for df, dc in DIRECCIONES:
+        if resolver_backtracking(maze, f + df, c + dc, fin, visitado, ruta):
+            return True
+
+    ruta.pop()
+    return False
+
+
+def resolver_dfs(maze):
+    inicio, fin = buscar_inicio_fin(maze)
+    if inicio is None or fin is None:
+        return False, [], 0
+
+    filas = len(maze)
+    cols = len(maze[0])
+    pila = [inicio]
+    visitado = {inicio}
+    padre = {inicio: None}
+    explorados = 0
+
+    while pila:
+        actual = pila.pop()
+        explorados += 1
+
+        if actual == fin:
+            return True, reconstruir_camino(padre, fin), explorados
+
+        f, c = actual
+        for df, dc in DIRECCIONES:
+            nf, nc = f + df, c + dc
+            if 0 <= nf < filas and 0 <= nc < cols:
+                if maze[nf][nc] != 1 and (nf, nc) not in visitado:
+                    visitado.add((nf, nc))
+                    padre[(nf, nc)] = actual
+                    pila.append((nf, nc))
+
+    return False, [], explorados
+
+
+def resolver_bfs(maze):
+    inicio, fin = buscar_inicio_fin(maze)
+    if inicio is None or fin is None:
+        return False, [], 0
+
+    filas = len(maze)
+    cols = len(maze[0])
+    cola = deque([inicio])
+    visitado = {inicio}
+    padre = {inicio: None}
+    explorados = 0
+
+    while cola:
+        actual = cola.popleft()
+        explorados += 1
+
+        if actual == fin:
+            return True, reconstruir_camino(padre, fin), explorados
+
+        f, c = actual
+        for df, dc in DIRECCIONES:
+            nf, nc = f + df, c + dc
+            if 0 <= nf < filas and 0 <= nc < cols:
+                if maze[nf][nc] != 1 and (nf, nc) not in visitado:
+                    visitado.add((nf, nc))
+                    padre[(nf, nc)] = actual
+                    cola.append((nf, nc))
+
+    return False, [], explorados
+
+
+def resolver_dijkstra(maze):
+    inicio, fin = buscar_inicio_fin(maze)
+    if inicio is None or fin is None:
+        return False, [], 0
+
+    filas = len(maze)
+    cols = len(maze[0])
+    cola = [(0, inicio)]
+    dist = {inicio: 0}
+    visitado = set()
+    padre = {inicio: None}
+    explorados = 0
+
+    while cola:
+        costo, actual = heapq.heappop(cola)
+        if actual in visitado:
+            continue
+        visitado.add(actual)
+        explorados += 1
+
+        if actual == fin:
+            return True, reconstruir_camino(padre, fin), explorados
+
+        f, c = actual
+        for df, dc in DIRECCIONES:
+            nf, nc = f + df, c + dc
+            if 0 <= nf < filas and 0 <= nc < cols:
+                if maze[nf][nc] != 1 and (nf, nc) not in visitado:
+                    nuevo_costo = costo + 1
+                    if nuevo_costo < dist.get((nf, nc), float("inf")):
+                        dist[(nf, nc)] = nuevo_costo
+                        padre[(nf, nc)] = actual
+                        heapq.heappush(cola, (nuevo_costo, (nf, nc)))
+
+    return False, [], explorados
+
+
+def heuristica_manhattan(a, b):
+    return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+
+def resolver_a_estrella(maze):
+    inicio, fin = buscar_inicio_fin(maze)
+    if inicio is None or fin is None:
+        return False, [], 0
+
+    filas = len(maze)
+    cols = len(maze[0])
+    cola = [(heuristica_manhattan(inicio, fin), 0, inicio)]
+    g_costo = {inicio: 0}
+    visitado = set()
+    padre = {inicio: None}
+    explorados = 0
+
+    while cola:
+        _, g, actual = heapq.heappop(cola)
+        if actual in visitado:
+            continue
+        visitado.add(actual)
+        explorados += 1
+
+        if actual == fin:
+            return True, reconstruir_camino(padre, fin), explorados
+
+        f, c = actual
+        for df, dc in DIRECCIONES:
+            nf, nc = f + df, c + dc
+            if 0 <= nf < filas and 0 <= nc < cols:
+                if maze[nf][nc] != 1 and (nf, nc) not in visitado:
+                    nuevo_g = g + 1
+                    if nuevo_g < g_costo.get((nf, nc), float("inf")):
+                        g_costo[(nf, nc)] = nuevo_g
+                        f_costo = nuevo_g + heuristica_manhattan((nf, nc), fin)
+                        padre[(nf, nc)] = actual
+                        heapq.heappush(cola, (f_costo, nuevo_g, (nf, nc)))
+
+    return False, [], explorados
+
+
+def mostrar_laberinto(maze, ruta=None):
+    camino = set(ruta) if ruta else set()
+
+    for f in range(len(maze)):
+        linea = []
+        for c in range(len(maze[0])):
+            celda = maze[f][c]
+            if celda == "S" or celda == "E":
+                linea.append(celda)
+            elif celda == 1:
+                linea.append("#")
+            elif (f, c) in camino:
+                linea.append("*")
+            else:
+                linea.append(".")
+        print(" ".join(linea))
+
+
+def mostrar_fila(nombre, ok, pasos, explorados, tiempo):
+    salida = "SI" if ok else "NO"
+    col1 = nombre.ljust(13)
+    col2 = salida.ljust(6)
+    col3 = str(pasos).ljust(6)
+    col4 = str(explorados).ljust(10)
+    col5 = str(round(tiempo, 4))
+    print(col1, "|", col2, "|", col3, "|", col4, "|", col5)
+
+
+def ejecutar_prueba(titulo, maze, mostrar_mapa=True):
+    filas = len(maze)
+    cols = len(maze[0])
+    print("\n---", titulo, "(" + str(filas) + "x" + str(cols) + ") ---")
+
+    if mostrar_mapa:
+        print("Mapa inicial (S=inicio, E=salida, #=muro, .=libre):")
+        mostrar_laberinto(maze)
+
+    t0 = time.perf_counter()
+    inicio, fin = buscar_inicio_fin(maze)
+    vis_bt = set()
+    ruta_bt = []
+    if inicio is not None and fin is not None:
+        ok_bt = resolver_backtracking(maze, inicio[0], inicio[1], fin, vis_bt, ruta_bt)
+    else:
+        ok_bt = False
+    t_bt = (time.perf_counter() - t0) * 1000
+
+    t0 = time.perf_counter()
+    ok_dfs, ruta_dfs, exp_dfs = resolver_dfs(maze)
+    t_dfs = (time.perf_counter() - t0) * 1000
+
+    t0 = time.perf_counter()
+    ok_bfs, ruta_bfs, exp_bfs = resolver_bfs(maze)
+    t_bfs = (time.perf_counter() - t0) * 1000
+
+    t0 = time.perf_counter()
+    ok_dij, ruta_dij, exp_dij = resolver_dijkstra(maze)
+    t_dij = (time.perf_counter() - t0) * 1000
+
+    t0 = time.perf_counter()
+    ok_ast, ruta_ast, exp_ast = resolver_a_estrella(maze)
+    t_ast = (time.perf_counter() - t0) * 1000
+
+    pasos_bt = len(ruta_bt) - 1 if ok_bt else 0
+    pasos_dfs = len(ruta_dfs) - 1 if ok_dfs else 0
+    pasos_bfs = len(ruta_bfs) - 1 if ok_bfs else 0
+    pasos_dij = len(ruta_dij) - 1 if ok_dij else 0
+    pasos_ast = len(ruta_ast) - 1 if ok_ast else 0
+
+    print("\nAlgoritmo     | Salida | Pasos  | Explorados | Tiempo (ms)")
+    print("----------------------------------------------------------")
+    mostrar_fila("Backtracking", ok_bt, pasos_bt, len(vis_bt), t_bt)
+    mostrar_fila("DFS", ok_dfs, pasos_dfs, exp_dfs, t_dfs)
+    mostrar_fila("BFS", ok_bfs, pasos_bfs, exp_bfs, t_bfs)
+    mostrar_fila("Dijkstra", ok_dij, pasos_dij, exp_dij, t_dij)
+    mostrar_fila("A*", ok_ast, pasos_ast, exp_ast, t_ast)
+
+    if ok_bfs:
+        if mostrar_mapa:
+            print("\nRuta mas corta (BFS con '*'):")
+            mostrar_laberinto(maze, ruta_bfs)
+            print("Coordenadas:", ruta_bfs)
+        else:
+            print("\nRuta optima BFS:", pasos_bfs, "pasos")
+    else:
+        print("\nAviso: la salida 'E' es inaccesible, este laberinto no tiene solucion.")
+
+
+def ingresar_laberinto():
+    filas = int(input("Numero de filas: "))
+    cols = int(input("Numero de columnas: "))
+    print("Ingresa cada fila separada por espacios: S (inicio), E (salida), 0 (libre), 1 (muro)")
+    print("Nota: solo se permite una 'S' y una 'E' en todo el laberinto.")
+
+    maze = []
+    cuenta_s = 0
+    cuenta_e = 0
+
+    for f in range(filas):
+        while True:
+            texto = input("Fila " + str(f + 1) + ": ").strip().upper()
+            partes = texto.split()
+
+            if len(partes) != cols:
+                print("Debes ingresar exactamente", cols, "valores.")
+                continue
+
+            fila = []
+            s_en_fila = 0
+            e_en_fila = 0
+            valido = True
+
+            for valor in partes:
+                if valor == "0" or valor == "1":
+                    fila.append(int(valor))
+                elif valor == "S":
+                    if cuenta_s + s_en_fila >= 1:
+                        print("Solo se permite una 'S' (inicio) en todo el laberinto. Cambia la fila.")
+                        valido = False
+                        break
+                    s_en_fila += 1
+                    fila.append(valor)
+                elif valor == "E":
+                    if cuenta_e + e_en_fila >= 1:
+                        print("Solo se permite una 'E' (salida) en todo el laberinto. Cambia la fila.")
+                        valido = False
+                        break
+                    e_en_fila += 1
+                    fila.append(valor)
+                else:
+                    print("Simbolo no valido:", valor)
+                    valido = False
+                    break
+
+            if valido:
+                cuenta_s += s_en_fila
+                cuenta_e += e_en_fila
+                maze.append(fila)
+                break
+
+    if cuenta_s != 1 or cuenta_e != 1:
+        print("Error: el mapa debe tener exactamente una 'S' y una 'E'.")
+        return None
+
+    return maze
+
+
+while True:
+    print("\n=== RESOLVEDOR DE LABERINTOS - GRUPO 13 ===")
+    print("1. Caso normal aleatorio con solucion (6x6)")
+    print("2. Caso limite fijo (1x2)")
+    print("3. Caso aleatorio SIN solucion (5x5)")
+    print("4. Comparativa de rendimiento aleatoria con solucion (10x10, 25x25 y 40x40)")
+    print("5. Ingresar laberinto manualmente")
+    print("0. Salir")
+
+    op = input("Opcion: ").strip()
+
+    if op == "1":
+        mapa_1, seed_1 = generar_laberinto(6, 6, con_solucion=True, prob_muro=0.28)
+        ejecutar_prueba(f"CASO NORMAL (seed {seed_1})", mapa_1, True)
+    elif op == "2":
+        ejecutar_prueba("CASO LIMITE", MAPA_LIMITE, True)
+    elif op == "3":
+        mapa_3, seed_3 = generar_laberinto(5, 5, con_solucion=False, prob_muro=0.45)
+        ejecutar_prueba(f"CASO SIN SOLUCION (seed {seed_3})", mapa_3, True)
+    elif op == "4":
+        mapa_10, seed_10 = generar_laberinto(10, 10, con_solucion=True, prob_muro=0.28)
+        mapa_25, seed_25 = generar_laberinto(25, 25, con_solucion=True, prob_muro=0.28)
+        mapa_40, seed_40 = generar_laberinto(40, 40, con_solucion=True, prob_muro=0.28)
+        ejecutar_prueba(f"PEQUENO (seed {seed_10})", mapa_10, False)
+        ejecutar_prueba(f"MEDIANO (seed {seed_25})", mapa_25, False)
+        ejecutar_prueba(f"GRANDE (seed {seed_40})", mapa_40, False)
+    elif op == "5":
+        lab = ingresar_laberinto()
+        if lab is not None:
+            ejecutar_prueba("LABERINTO MANUAL", lab, True)
+    elif op == "0":
+        print("Programa finalizado.")
+        break
+    else:
+        print("Opcion no valida.")
+</script>
+
+  <!-- =====================================================================
+       PYSCRIPT BRIDGE: Executes the exact functions from resolvedor_laberintosv3.py
+       without the blocking input() loop and publishes results to JS.
+       ===================================================================== -->
+  <script type="py">
+    import json
+    import time
+    from pyscript import document, window
+
+    # Extract exact Python definitions without the interactive while True loop
+    raw_code = document.querySelector("#raw-python-source").textContent
+    marker = "\nwhile True:\n"
+    py_body = raw_code.split(marker)[0] if marker in raw_code else raw_code
+
+    namespace = {}
+    exec(py_body, namespace)
+
+    def _run_suite_in_python(titulo, maze):
+        filas = len(maze)
+        cols = len(maze[0]) if filas else 0
+        inicio, fin = namespace["buscar_inicio_fin"](maze)
+
+        t0 = time.perf_counter()
+        vis_bt = set()
+        ruta_bt = []
+        if inicio is not None and fin is not None:
+            ok_bt = namespace["resolver_backtracking"](maze, inicio[0], inicio[1], fin, vis_bt, ruta_bt)
+        else:
+            ok_bt = False
+        t_bt = (time.perf_counter() - t0) * 1000
+
+        t0 = time.perf_counter()
+        ok_dfs, ruta_dfs, exp_dfs = namespace["resolver_dfs"](maze)
+        t_dfs = (time.perf_counter() - t0) * 1000
+
+        t0 = time.perf_counter()
+        ok_bfs, ruta_bfs, exp_bfs = namespace["resolver_bfs"](maze)
+        t_bfs = (time.perf_counter() - t0) * 1000
+
+        t0 = time.perf_counter()
+        ok_dij, ruta_dij, exp_dij = namespace["resolver_dijkstra"](maze)
+        t_dij = (time.perf_counter() - t0) * 1000
+
+        t0 = time.perf_counter()
+        ok_ast, ruta_ast, exp_ast = namespace["resolver_a_estrella"](maze)
+        t_ast = (time.perf_counter() - t0) * 1000
+
+        rows = [
+            {
+                "algoritmo": "Backtracking",
+                "salida": "SI" if ok_bt else "NO",
+                "pasos": (len(ruta_bt) - 1) if ok_bt else 0,
+                "explorados": len(vis_bt),
+                "tiempo_ms": round(t_bt, 4),
+            },
+            {
+                "algoritmo": "DFS",
+                "salida": "SI" if ok_dfs else "NO",
+                "pasos": (len(ruta_dfs) - 1) if ok_dfs else 0,
+                "explorados": exp_dfs,
+                "tiempo_ms": round(t_dfs, 4),
+            },
+            {
+                "algoritmo": "BFS",
+                "salida": "SI" if ok_bfs else "NO",
+                "pasos": (len(ruta_bfs) - 1) if ok_bfs else 0,
+                "explorados": exp_bfs,
+                "tiempo_ms": round(t_bfs, 4),
+            },
+            {
+                "algoritmo": "Dijkstra",
+                "salida": "SI" if ok_dij else "NO",
+                "pasos": (len(ruta_dij) - 1) if ok_dij else 0,
+                "explorados": exp_dij,
+                "tiempo_ms": round(t_dij, 4),
+            },
+            {
+                "algoritmo": "A*",
+                "salida": "SI" if ok_ast else "NO",
+                "pasos": (len(ruta_ast) - 1) if ok_ast else 0,
+                "explorados": exp_ast,
+                "tiempo_ms": round(t_ast, 4),
+            },
+        ]
+
+        return json.dumps({
+            "titulo": titulo,
+            "filas": filas,
+            "cols": cols,
+            "ok_bfs": ok_bfs,
+            "ruta_bfs": [list(pt) for pt in ruta_bfs],
+            "pasos_bfs": (len(ruta_bfs) - 1) if ok_bfs else 0,
+            "rutas": {
+                "Backtracking": [list(pt) for pt in ruta_bt] if ok_bt else [],
+                "DFS": [list(pt) for pt in ruta_dfs] if ok_dfs else [],
+                "BFS": [list(pt) for pt in ruta_bfs] if ok_bfs else [],
+                "Dijkstra": [list(pt) for pt in ruta_dij] if ok_dij else [],
+                "A*": [list(pt) for pt in ruta_ast] if ok_ast else [],
+            },
+            "rows": rows,
+        })
+
+    def _generate_in_python(filas, cols, semilla=None, con_solucion=True, prob_muro=0.28):
+        sem = int(semilla) if semilla is not None else None
+        m, used_seed = namespace["generar_laberinto"](
+            int(filas),
+            int(cols),
+            semilla=sem,
+            con_solucion=bool(con_solucion),
+            prob_muro=float(prob_muro),
+        )
+        return json.dumps({"maze": m, "semilla": used_seed})
+
+    window.pyBridgeReady = True
+    window.pyEvaluateMaze = _run_suite_in_python
+    window.pyGenerateMaze = _generate_in_python
+
+  </script>
+
+  <!-- =====================================================================
+       JAVASCRIPT APPLICATION & EXACT MIRROR OF resolvedor_laberintosv3.py
+       Guarantees instant zero-latency execution in every browser and uses
+       window.pyEvaluateMaze / window.pyGenerateMaze automatically once PyScript boots.
+       ===================================================================== -->
+  <script>
+    (function () {
+      "use strict";
+
+      // Exact constants from resolvedor_laberintosv3.py
+      const DIRECCIONES = [
+        [-1, 0],
+        [1, 0],
+        [0, -1],
+        [0, 1],
+      ];
+
+      const MAPA_LIMITE = [
+        ["S", "E"],
+      ];
+
+      function mulberry32(seed) {
+        let a = seed >>> 0;
+        return function () {
+          a |= 0;
+          a = (a + 0x6d2b79f5) | 0;
+          let t = Math.imul(a ^ (a >>> 15), 1 | a);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+
+      function randomSeedInt() {
+        if (window.crypto && window.crypto.getRandomValues) {
+          const arr = new Uint32Array(1);
+          window.crypto.getRandomValues(arr);
+          return (arr[0] % 999999999) + 1;
+        }
+        return Math.floor(Math.random() * 999999999) + 1;
+      }
+
+      function buscarInicioFinJS(maze) {
+        let inicio = null;
+        let fin = null;
+        for (let f = 0; f < maze.length; f++) {
+          for (let c = 0; c < maze[0].length; c++) {
+            if (maze[f][c] === "S") inicio = [f, c];
+            else if (maze[f][c] === "E") fin = [f, c];
+            if (inicio && fin) return [inicio, fin];
+          }
+        }
+        return [inicio, fin];
+      }
+
+      function existeCaminoBFSJS(maze) {
+        const [inicio, fin] = buscarInicioFinJS(maze);
+        if (!inicio || !fin) return false;
+        const filas = maze.length;
+        const cols = maze[0].length;
+        const cola = [inicio];
+        let head = 0;
+        const visitado = new Set([`${inicio[0]},${inicio[1]}`]);
+
+        while (head < cola.length) {
+          const [f, c] = cola[head++];
+          if (f === fin[0] && c === fin[1]) return true;
+          for (const [df, dc] of DIRECCIONES) {
+            const nf = f + df;
+            const nc = c + dc;
+            if (nf >= 0 && nf < filas && nc >= 0 && nc < cols) {
+              const key = `${nf},${nc}`;
+              if (maze[nf][nc] !== 1 && !visitado.has(key)) {
+                visitado.add(key);
+                cola.push([nf, nc]);
+              }
+            }
+          }
+        }
+        return false;
+      }
+
+      // Exact mirror of generar_laberinto(filas, cols, semilla=None, con_solucion=True, prob_muro=0.28)
+      function generarLaberintoJS(filas, cols, semilla = null, conSolucion = true, probMuro = 0.28) {
+        let usedSeed = semilla !== null && semilla !== undefined ? semilla : randomSeedInt();
+        const rng = mulberry32(usedSeed);
+
+        while (true) {
+          const maze = [];
+          for (let f = 0; f < filas; f++) {
+            const fila = [];
+            for (let c = 0; c < cols; c++) {
+              fila.push(rng() < probMuro ? 1 : 0);
+            }
+            maze.push(fila);
+          }
+
+          if (conSolucion) {
+            let f = 0;
+            let c = 0;
+            maze[f][c] = 0;
+            while (f < filas - 1 || c < cols - 1) {
+              if (f === filas - 1) {
+                c += 1;
+              } else if (c === cols - 1) {
+                f += 1;
+              } else if (rng() < 0.5) {
+                f += 1;
+              } else {
+                c += 1;
+              }
+              maze[f][c] = 0;
+            }
+          }
+
+          maze[0][0] = "S";
+          maze[filas - 1][cols - 1] = "E";
+
+          if (filas === 1 && cols === 1) {
+            return { maze, semilla: usedSeed };
+          }
+
+          const tieneCamino = existeCaminoBFSJS(maze);
+          if (conSolucion && tieneCamino) {
+            return { maze, semilla: usedSeed };
+          }
+          if (!conSolucion && !tieneCamino) {
+            return { maze, semilla: usedSeed };
+          }
+        }
+      }
+
+      function reconstruirCaminoJS(padreMap, fin) {
+        const ruta = [];
+        let actualKey = `${fin[0]},${fin[1]}`;
+        while (actualKey !== null && actualKey !== undefined) {
+          const parts = actualKey.split(",").map(Number);
+          ruta.push([parts[0], parts[1]]);
+          actualKey = padreMap.get(actualKey);
+        }
+        ruta.reverse();
+        return ruta;
+      }
+
+      function resolverBacktrackingJS(maze, f, c, fin, visitado, ruta) {
+        const filas = maze.length;
+        const cols = maze[0].length;
+        if (f < 0 || f >= filas || c < 0 || c >= cols) return false;
+        const key = `${f},${c}`;
+        if (maze[f][c] === 1 || visitado.has(key)) return false;
+
+        visitado.add(key);
+        ruta.push([f, c]);
+
+        if (f === fin[0] && c === fin[1]) return true;
+
+        for (const [df, dc] of DIRECCIONES) {
+          if (resolverBacktrackingJS(maze, f + df, c + dc, fin, visitado, ruta)) {
+            return true;
+          }
+        }
+        ruta.pop();
+        return false;
+      }
+
+      function resolverDFSJS(maze) {
+        const [inicio, fin] = buscarInicioFinJS(maze);
+        if (!inicio || !fin) return [false, [], 0];
+        const filas = maze.length;
+        const cols = maze[0].length;
+        const startKey = `${inicio[0]},${inicio[1]}`;
+        const pila = [inicio];
+        const visitado = new Set([startKey]);
+        const padre = new Map([[startKey, null]]);
+        let explorados = 0;
+
+        while (pila.length > 0) {
+          const actual = pila.pop();
+          explorados += 1;
+          if (actual[0] === fin[0] && actual[1] === fin[1]) {
+            return [true, reconstruirCaminoJS(padre, fin), explorados];
+          }
+          for (const [df, dc] of DIRECCIONES) {
+            const nf = actual[0] + df;
+            const nc = actual[1] + dc;
+            if (nf >= 0 && nf < filas && nc >= 0 && nc < cols) {
+              const nKey = `${nf},${nc}`;
+              if (maze[nf][nc] !== 1 && !visitado.has(nKey)) {
+                visitado.add(nKey);
+                padre.set(nKey, `${actual[0]},${actual[1]}`);
+                pila.push([nf, nc]);
+              }
+            }
+          }
+        }
+        return [false, [], explorados];
+      }
+
+      function resolverBFSJS(maze) {
+        const [inicio, fin] = buscarInicioFinJS(maze);
+        if (!inicio || !fin) return [false, [], 0];
+        const filas = maze.length;
+        const cols = maze[0].length;
+        const startKey = `${inicio[0]},${inicio[1]}`;
+        const cola = [inicio];
+        let head = 0;
+        const visitado = new Set([startKey]);
+        const padre = new Map([[startKey, null]]);
+        let explorados = 0;
+
+        while (head < cola.length) {
+          const actual = cola[head++];
+          explorados += 1;
+          if (actual[0] === fin[0] && actual[1] === fin[1]) {
+            return [true, reconstruirCaminoJS(padre, fin), explorados];
+          }
+          for (const [df, dc] of DIRECCIONES) {
+            const nf = actual[0] + df;
+            const nc = actual[1] + dc;
+            if (nf >= 0 && nf < filas && nc >= 0 && nc < cols) {
+              const nKey = `${nf},${nc}`;
+              if (maze[nf][nc] !== 1 && !visitado.has(nKey)) {
+                visitado.add(nKey);
+                padre.set(nKey, `${actual[0]},${actual[1]}`);
+                cola.push([nf, nc]);
+              }
+            }
+          }
+        }
+        return [false, [], explorados];
+      }
+
+      function resolverDijkstraJS(maze) {
+        const [inicio, fin] = buscarInicioFinJS(maze);
+        if (!inicio || !fin) return [false, [], 0];
+        const filas = maze.length;
+        const cols = maze[0].length;
+        const startKey = `${inicio[0]},${inicio[1]}`;
+        const pq = [[0, inicio[0], inicio[1]]];
+        const dist = new Map([[startKey, 0]]);
+        const visitado = new Set();
+        const padre = new Map([[startKey, null]]);
+        let explorados = 0;
+
+        while (pq.length > 0) {
+          pq.sort((a, b) => a[0] - b[0]);
+          const [costo, f, c] = pq.shift();
+          const key = `${f},${c}`;
+          if (visitado.has(key)) continue;
+          visitado.add(key);
+          explorados += 1;
+
+          if (f === fin[0] && c === fin[1]) {
+            return [true, reconstruirCaminoJS(padre, fin), explorados];
+          }
+
+          for (const [df, dc] of DIRECCIONES) {
+            const nf = f + df;
+            const nc = c + dc;
+            if (nf >= 0 && nf < filas && nc >= 0 && nc < cols) {
+              const nKey = `${nf},${nc}`;
+              if (maze[nf][nc] !== 1 && !visitado.has(nKey)) {
+                const nuevoCosto = costo + 1;
+                if (nuevoCosto < (dist.get(nKey) ?? Infinity)) {
+                  dist.set(nKey, nuevoCosto);
+                  padre.set(nKey, key);
+                  pq.push([nuevoCosto, nf, nc]);
+                }
+              }
+            }
+          }
+        }
+        return [false, [], explorados];
+      }
+
+      function heuristicaManhattanJS(a, b) {
+        return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+      }
+
+      function resolverAEstrellaJS(maze) {
+        const [inicio, fin] = buscarInicioFinJS(maze);
+        if (!inicio || !fin) return [false, [], 0];
+        const filas = maze.length;
+        const cols = maze[0].length;
+        const startKey = `${inicio[0]},${inicio[1]}`;
+        const pq = [[heuristicaManhattanJS(inicio, fin), 0, inicio[0], inicio[1]]];
+        const gCosto = new Map([[startKey, 0]]);
+        const visitado = new Set();
+        const padre = new Map([[startKey, null]]);
+        let explorados = 0;
+
+        while (pq.length > 0) {
+          pq.sort((a, b) => a[0] - b[0]);
+          const [, g, f, c] = pq.shift();
+          const key = `${f},${c}`;
+          if (visitado.has(key)) continue;
+          visitado.add(key);
+          explorados += 1;
+
+          if (f === fin[0] && c === fin[1]) {
+            return [true, reconstruirCaminoJS(padre, fin), explorados];
+          }
+
+          for (const [df, dc] of DIRECCIONES) {
+            const nf = f + df;
+            const nc = c + dc;
+            if (nf >= 0 && nf < filas && nc >= 0 && nc < cols) {
+              const nKey = `${nf},${nc}`;
+              if (maze[nf][nc] !== 1 && !visitado.has(nKey)) {
+                const nuevoG = g + 1;
+                if (nuevoG < (gCosto.get(nKey) ?? Infinity)) {
+                  gCosto.set(nKey, nuevoG);
+                  const fCosto = nuevoG + heuristicaManhattanJS([nf, nc], fin);
+                  padre.set(nKey, key);
+                  pq.push([fCosto, nuevoG, nf, nc]);
+                }
+              }
+            }
+          }
+        }
+        return [false, [], explorados];
+      }
+
+      function evaluateMazeSuite(titulo, maze) {
+        if (window.pyBridgeReady && typeof window.pyEvaluateMaze === "function") {
+          try {
+            const rawJson = window.pyEvaluateMaze(titulo, maze);
+            return JSON.parse(rawJson);
+          } catch (err) {
+            // Fall back smoothly to JS mirror
+          }
+        }
+
+        const filas = maze.length;
+        const cols = maze[0].length;
+        const [inicio, fin] = buscarInicioFinJS(maze);
+
+        let t0 = performance.now();
+        const visBt = new Set();
+        const rutaBt = [];
+        const okBt = inicio && fin ? resolverBacktrackingJS(maze, inicio[0], inicio[1], fin, visBt, rutaBt) : false;
+        const tBt = performance.now() - t0;
+
+        t0 = performance.now();
+        const [okDfs, rutaDfs, expDfs] = resolverDFSJS(maze);
+        const tDfs = performance.now() - t0;
+
+        t0 = performance.now();
+        const [okBfs, rutaBfs, expBfs] = resolverBFSJS(maze);
+        const tBfs = performance.now() - t0;
+
+        t0 = performance.now();
+        const [okDij, rutaDij, expDij] = resolverDijkstraJS(maze);
+        const tDij = performance.now() - t0;
+
+        t0 = performance.now();
+        const [okAst, rutaAst, expAst] = resolverAEstrellaJS(maze);
+        const tAst = performance.now() - t0;
+
+        return {
+          titulo,
+          filas,
+          cols,
+          ok_bfs: okBfs,
+          ruta_bfs: rutaBfs,
+          pasos_bfs: okBfs ? rutaBfs.length - 1 : 0,
+          rutas: {
+            Backtracking: okBt ? rutaBt : [],
+            DFS: okDfs ? rutaDfs : [],
+            BFS: okBfs ? rutaBfs : [],
+            Dijkstra: okDij ? rutaDij : [],
+            "A*": okAst ? rutaAst : [],
+          },
+          rows: [
+            { algoritmo: "Backtracking", salida: okBt ? "SI" : "NO", pasos: okBt ? rutaBt.length - 1 : 0, explorados: visBt.size, tiempo_ms: Number(tBt.toFixed(4)) },
+            { algoritmo: "DFS", salida: okDfs ? "SI" : "NO", pasos: okDfs ? rutaDfs.length - 1 : 0, explorados: expDfs, tiempo_ms: Number(tDfs.toFixed(4)) },
+            { algoritmo: "BFS", salida: okBfs ? "SI" : "NO", pasos: okBfs ? rutaBfs.length - 1 : 0, explorados: expBfs, tiempo_ms: Number(tBfs.toFixed(4)) },
+            { algoritmo: "Dijkstra", salida: okDij ? "SI" : "NO", pasos: okDij ? rutaDij.length - 1 : 0, explorados: expDij, tiempo_ms: Number(tDij.toFixed(4)) },
+            { algoritmo: "A*", salida: okAst ? "SI" : "NO", pasos: okAst ? rutaAst.length - 1 : 0, explorados: expAst, tiempo_ms: Number(tAst.toFixed(4)) },
+          ],
+        };
+      }
+
+      function getGeneratedMaze(filas, cols, semilla = null, conSolucion = true, probMuro = 0.28) {
+        if (window.pyBridgeReady && typeof window.pyGenerateMaze === "function") {
+          try {
+            return JSON.parse(window.pyGenerateMaze(filas, cols, semilla, conSolucion, probMuro));
+          } catch (e) {
+            // fallback
+          }
+        }
+        return generarLaberintoJS(filas, cols, semilla, conSolucion, probMuro);
+      }
+
+      // =====================================================================
+      // UI STATE & NAVIGATION (7 Sections, zero scrolling)
+      // =====================================================================
+      const SECTIONS = ["caratula", "caso1", "caso2", "caso3", "caso4", "caso5", "codigo"];
+      let currentSection = "caratula";
+      let selectedSolverAlgo = "BFS";
+      let benchmarkCache = [];
+      let activeBenchIdx = 0;
+      let activeBenchAlgo = "BFS";
+
+      // Cached random mazes for Caso 1 (6x6, con_solucion=True, prob_muro=0.28)
+      // and Caso 3 (5x5, con_solucion=False, prob_muro=0.45)
+      let caso1State = null;
+      let caso3State = null;
+
+      let manualMaze = [
+        ["S", 0, 0, 1, 0],
+        [0, 1, 0, 1, 0],
+        [0, 1, 0, 0, 0],
+        [0, 0, 0, 1, 0],
+        [1, 1, 0, 0, "E"],
+      ];
+
+      function cloneMatrix(m) {
+        return m.map((row) => row.slice());
+      }
+
+      function ensureCaso1Generated(forceNew = false) {
+        if (!caso1State || forceNew) {
+          caso1State = getGeneratedMaze(6, 6, null, true, 0.28);
+        }
+        return caso1State;
+      }
+
+      function ensureCaso3Generated(forceNew = false) {
+        if (!caso3State || forceNew) {
+          caso3State = getGeneratedMaze(5, 5, null, false, 0.45);
+        }
+        return caso3State;
+      }
+
+      function navigateTo(sectionId) {
+        if (!SECTIONS.includes(sectionId)) return;
+        currentSection = sectionId;
+
+        document.querySelectorAll(".nav-btn").forEach((btn) => {
+          btn.classList.toggle("active", btn.dataset.section === sectionId);
+        });
+
+        document.querySelectorAll(".app-section").forEach((el) => el.classList.add("hidden"));
+
+        if (sectionId === "caratula") {
+          document.getElementById("sec-caratula").classList.remove("hidden");
+        } else if (sectionId === "caso4") {
+          document.getElementById("sec-caso4").classList.remove("hidden");
+          if (benchmarkCache.length === 0) {
+            runBenchmarkView();
+          }
+        } else if (sectionId === "codigo") {
+          document.getElementById("sec-codigo").classList.remove("hidden");
+        } else {
+          document.getElementById("sec-solver").classList.remove("hidden");
+          const manualBox = document.getElementById("manual-controls");
+          manualBox.classList.toggle("hidden", sectionId !== "caso5");
+          manualBox.classList.toggle("flex", sectionId === "caso5");
+
+          const rerunBtn = document.getElementById("btn-rerun-solver");
+          if (sectionId === "caso1" || sectionId === "caso3") {
+            rerunBtn.textContent = "Generar Nuevo";
+          } else {
+            rerunBtn.textContent = "Ejecutar";
+          }
+
+          runCurrentSolverCase(false);
+          requestAnimationFrame(() => runCurrentSolverCase(false));
+        }
+      }
+
+      function renderMazeIntoContainer(containerId, maze, ruta, allowManualEdit) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = "";
+        const rows = maze.length;
+        const cols = maze[0].length;
+        const pathSet = new Set(ruta ? ruta.map((pt) => `${pt[0]},${pt[1]}`) : []);
+
+        const availW = Math.max(140, container.clientWidth - 12);
+        const availH = Math.max(120, container.clientHeight - 12);
+        const gapPx = rows > 25 ? 1 : 2;
+        const cellSize = Math.max(5, Math.min(40, Math.floor(Math.min(availW / cols, availH / rows) - gapPx)));
+
+        const gridEl = document.createElement("div");
+        gridEl.style.display = "grid";
+        gridEl.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+        gridEl.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
+        gridEl.style.gap = `${gapPx}px`;
+
+        const showGlyphs = cellSize >= 12;
+        const fontSize = Math.max(8, Math.min(14, Math.floor(cellSize * 0.44)));
+
+        for (let f = 0; f < rows; f++) {
+          for (let c = 0; c < cols; c++) {
+            const val = maze[f][c];
+            const key = `${f},${c}`;
+            const cell = document.createElement("div");
+            cell.className = "maze-cell";
+            cell.style.width = `${cellSize}px`;
+            cell.style.height = `${cellSize}px`;
+            cell.style.fontSize = `${fontSize}px`;
+
+            if (val === "S") {
+              cell.classList.add("cell-start");
+              cell.textContent = showGlyphs ? "S" : "";
+            } else if (val === "E") {
+              cell.classList.add("cell-end");
+              cell.textContent = showGlyphs ? "E" : "";
+            } else if (val === 1) {
+              cell.classList.add("cell-wall");
+              cell.textContent = showGlyphs ? "#" : "";
+            } else if (pathSet.has(key)) {
+              cell.classList.add("cell-path");
+              cell.textContent = showGlyphs ? "*" : "";
+            } else {
+              cell.classList.add("cell-free");
+              cell.textContent = showGlyphs ? "." : "";
+            }
+
+            if (allowManualEdit) {
+              cell.style.cursor = "pointer";
+              cell.title = `Fila ${f + 1}, Col ${c + 1} — Clic para cambiar valor`;
+              cell.addEventListener("click", () => cycleManualCell(f, c));
+            }
+
+            gridEl.appendChild(cell);
+          }
+        }
+        container.appendChild(gridEl);
+      }
+
+      function cycleManualCell(f, c) {
+        const order = [0, 1, "S", "E"];
+        const current = manualMaze[f][c];
+        const nextVal = order[(order.indexOf(current) + 1) % order.length];
+        manualMaze[f][c] = nextVal;
+        runCurrentSolverCase(false);
+      }
+
+      function validateManualMaze(maze) {
+        let countS = 0;
+        let countE = 0;
+        for (const row of maze) {
+          for (const v of row) {
+            if (v === "S") countS++;
+            if (v === "E") countE++;
+          }
+        }
+        const msgEl = document.getElementById("manual-validation-msg");
+        if (countS !== 1 || countE !== 1) {
+          msgEl.classList.remove("hidden");
+          msgEl.textContent = `Aviso: se requiere exactamente 1 'S' (actual: ${countS}) y 1 'E' (actual: ${countE}).`;
+          return false;
+        }
+        msgEl.classList.add("hidden");
+        return true;
+      }
+
+      function renderSolverResult(result, maze) {
+        const tbody = document.getElementById("algo-table-body");
+        tbody.innerHTML = "";
+
+        for (const row of result.rows) {
+          const tr = document.createElement("tr");
+          const isSelected = row.algoritmo === selectedSolverAlgo;
+          tr.className = (isSelected ? "bg-[#ff5b2e]/15 font-semibold " : "hover:bg-white/5 ") + "cursor-pointer";
+          tr.innerHTML = `
+            <td class="py-1 pr-2 ${isSelected ? "text-[#ff8a65]" : "text-white"}">${row.algoritmo}</td>
+            <td class="py-1 px-2">${row.salida}</td>
+            <td class="py-1 px-2">${row.pasos}</td>
+            <td class="py-1 px-2">${row.explorados}</td>
+            <td class="py-1 pl-2 text-right">${row.tiempo_ms}</td>
+          `;
+          tr.addEventListener("click", () => {
+            selectedSolverAlgo = row.algoritmo;
+            document.querySelectorAll(".algo-path-btn").forEach((b) => {
+              b.classList.toggle("active", b.dataset.algoPath === selectedSolverAlgo);
+            });
+            renderSolverResult(result, maze);
+          });
+          tbody.appendChild(tr);
+        }
+
+        const badge = document.getElementById("solver-status-badge");
+        const routeSum = document.getElementById("solver-route-summary");
+        const logOut = document.getElementById("solver-log-output");
+        document.getElementById("solver-dims-label").textContent = `${result.filas}×${result.cols}`;
+
+        const activeRoute = (result.rutas && result.rutas[selectedSolverAlgo]) || result.ruta_bfs || [];
+        const activeRow = result.rows.find((r) => r.algoritmo === selectedSolverAlgo);
+        const solved = activeRow ? activeRow.salida === "SI" : result.ok_bfs;
+
+        if (solved) {
+          const stepsCount = Math.max(0, activeRoute.length - 1);
+          badge.textContent = `SOLUCIÓN (${selectedSolverAlgo}): ${stepsCount} PASOS`;
+          badge.className = "text-[11px] font-mono-code px-2 py-0.5 rounded border border-[#ff5b2e]/60 text-[#ffb199]";
+          const coordsStr = activeRoute.map((p) => `(${p[0]}, ${p[1]})`).join(" -> ");
+          routeSum.textContent = `Ruta ${selectedSolverAlgo} (${stepsCount} pasos): ${coordsStr}`;
+          logOut.textContent =
+            `[${result.titulo}] Algoritmo activo: ${selectedSolverAlgo} (${stepsCount} pasos)\n` +
+            `Coordenadas: [${activeRoute.map((p) => `(${p[0]}, ${p[1]})`).join(", ")}]`;
+        } else {
+          badge.textContent = "SIN SOLUCIÓN";
+          badge.className = "text-[11px] font-mono-code px-2 py-0.5 rounded border border-red-500/45 text-red-200";
+          routeSum.textContent = "Aviso: la salida 'E' es inaccesible.";
+          logOut.textContent =
+            `[${result.titulo}]\nAviso: la salida 'E' es inaccesible, este laberinto no tiene solucion.`;
+        }
+
+        renderMazeIntoContainer("maze-board-container", maze, solved ? activeRoute : [], currentSection === "caso5");
+      }
+
+      function runCurrentSolverCase(forceRegenerate = false) {
+        let meta = null;
+
+        if (currentSection === "caso1") {
+          const gen1 = ensureCaso1Generated(forceRegenerate);
+          meta = {
+            tag: `PRUEBA 01 · CASO NORMAL ALEATORIO (SEED ${gen1.semilla})`,
+            title: `CASO NORMAL (6×6 · SEED ${gen1.semilla})`,
+            tituloRun: `CASO NORMAL (seed ${gen1.semilla})`,
+            maze: cloneMatrix(gen1.maze),
+          };
+        } else if (currentSection === "caso2") {
+          meta = {
+            tag: "PRUEBA 02 · CASO LÍMITE FIJO",
+            title: "CASO LÍMITE (1×2)",
+            tituloRun: "CASO LIMITE",
+            maze: cloneMatrix(MAPA_LIMITE),
+          };
+        } else if (currentSection === "caso3") {
+          const gen3 = ensureCaso3Generated(forceRegenerate);
+          meta = {
+            tag: `PRUEBA 03 · ALEATORIO SIN SOLUCIÓN (SEED ${gen3.semilla})`,
+            title: `SIN SOLUCIÓN (5×5 · SEED ${gen3.semilla})`,
+            tituloRun: `CASO SIN SOLUCION (seed ${gen3.semilla})`,
+            maze: cloneMatrix(gen3.maze),
+          };
+        } else if (currentSection === "caso5") {
+          meta = {
+            tag: "PRUEBA 05 · INGRESO MANUAL",
+            title: `LABERINTO MANUAL (${manualMaze.length}×${manualMaze[0].length})`,
+            tituloRun: "LABERINTO MANUAL",
+            maze: cloneMatrix(manualMaze),
+          };
+          validateManualMaze(meta.maze);
+        }
+
+        if (!meta) return;
+        document.getElementById("solver-tag").textContent = meta.tag;
+        document.getElementById("solver-title").textContent = meta.title;
+
+        const res = evaluateMazeSuite(meta.tituloRun, meta.maze);
+        renderSolverResult(res, meta.maze);
+      }
+
+      function renderBenchmarkInspector() {
+        if (!benchmarkCache.length) return;
+        const item = benchmarkCache[activeBenchIdx] || benchmarkCache[0];
+        const res = item.result;
+
+        benchmarkCache.forEach((bItem, idx) => {
+          const btn = document.getElementById(`bench-seed-btn-${idx}`);
+          if (btn) {
+            btn.textContent = `${bItem.size}×${bItem.size} (seed ${bItem.seed})`;
+            btn.classList.toggle("active", idx === activeBenchIdx);
+          }
+        });
+
+        document.querySelectorAll(".bench-algo-btn").forEach((b) => {
+          b.classList.toggle("active", b.dataset.benchAlgo === activeBenchAlgo);
+        });
+
+        const activeRoute = (res.rutas && res.rutas[activeBenchAlgo]) || res.ruta_bfs || [];
+        const stepsCount = Math.max(0, activeRoute.length - 1);
+
+        document.getElementById("bench-inspector-badge").textContent = `SEED ${item.seed} · ${item.size}×${item.size}`;
+        document.getElementById("bench-map-meta").textContent =
+          `${item.size}×${item.size} · Ruta ${activeBenchAlgo}: ${stepsCount} pasos`;
+
+        const tbody = document.getElementById("bench-inspector-tbody");
+        tbody.innerHTML = res.rows
+          .map((r) => {
+            const hl = r.algoritmo === activeBenchAlgo ? "text-[#ff8a65] font-semibold" : "text-[#ede0dc]";
+            return `
+              <tr>
+                <td class="py-1 pr-1 ${hl}">${r.algoritmo}</td>
+                <td class="py-1 px-1">${r.salida}</td>
+                <td class="py-1 px-1">${r.pasos}</td>
+                <td class="py-1 px-1">${r.explorados}</td>
+                <td class="py-1 pl-1 text-right">${r.tiempo_ms}</td>
+              </tr>
+            `;
+          })
+          .join("");
+
+        renderMazeIntoContainer("bench-maze-container", item.maze, activeRoute, false);
+      }
+
+      function toggleBenchmarkMapInspector(showMap, seedIndex) {
+        const cardsGrid = document.getElementById("benchmark-cards-grid");
+        const inspector = document.getElementById("benchmark-map-inspector");
+        const mainToggleBtn = document.getElementById("btn-open-generated-map");
+
+        if (typeof seedIndex === "number") {
+          activeBenchIdx = seedIndex;
+        }
+
+        if (showMap) {
+          cardsGrid.classList.add("hidden");
+          inspector.classList.remove("hidden");
+          mainToggleBtn.textContent = "Ver Tablas Comparativas";
+          renderBenchmarkInspector();
+          requestAnimationFrame(() => renderBenchmarkInspector());
+        } else {
+          inspector.classList.add("hidden");
+          cardsGrid.classList.remove("hidden");
+          mainToggleBtn.textContent = "Ver Mapa Generado";
+        }
+      }
+
+      function runBenchmarkView() {
+        const configs = [
+          { prefix: "PEQUEÑO", size: 10, titlePrefix: "PEQUENO" },
+          { prefix: "MEDIANO", size: 25, titlePrefix: "MEDIANO" },
+          { prefix: "GRANDE", size: 40, titlePrefix: "GRANDE" },
+        ];
+
+        benchmarkCache = configs.map((cfg) => {
+          const gen = getGeneratedMaze(cfg.size, cfg.size, null, true, 0.28);
+          const label = `${cfg.prefix} (${cfg.size}×${cfg.size} · seed ${gen.semilla})`;
+          const title = `${cfg.titlePrefix} (seed ${gen.semilla})`;
+          const result = evaluateMazeSuite(title, gen.maze);
+          return { ...cfg, label, title, seed: gen.semilla, maze: gen.maze, result };
+        });
+
+        const grid = document.getElementById("benchmark-cards-grid");
+        grid.innerHTML = "";
+
+        benchmarkCache.forEach((item, idx) => {
+          const res = item.result;
+          const card = document.createElement("div");
+          card.className = "frame-hairline py-1 md:px-3 first:md:pl-0 last:md:pr-0 flex flex-col justify-between min-h-0";
+
+          const rowsHtml = res.rows
+            .map((r) => {
+              const highlight = r.algoritmo === "BFS" ? "text-[#ff8a65] font-semibold" : "text-[#ede0dc]";
+              return `
+                <tr class="border-b border-white/10">
+                  <td class="py-1 pr-1 ${highlight}">${r.algoritmo}</td>
+                  <td class="py-1 px-1">${r.salida}</td>
+                  <td class="py-1 px-1">${r.pasos}</td>
+                  <td class="py-1 px-1">${r.explorados}</td>
+                  <td class="py-1 pl-1 text-right">${r.tiempo_ms}</td>
+                </tr>
+              `;
+            })
+            .join("");
+
+          card.innerHTML = `
+            <div class="flex items-center justify-between pb-1.5 border-b border-white/15 shrink-0 gap-1">
+              <span class="font-mono-code text-[11px] font-bold text-white truncate">${item.label}</span>
+              <span class="font-mono-code text-[11px] text-[#ff8a65] shrink-0">BFS: ${res.pasos_bfs} p.</span>
+            </div>
+            <div class="overflow-auto inner-scroll flex-1 my-1.5">
+              <table class="w-full text-left border-collapse font-mono-code text-[11px]">
+                <thead>
+                  <tr class="text-[10px] uppercase text-[#a6908a] border-b border-white/15">
+                    <th class="py-1 pr-1">Alg.</th>
+                    <th class="py-1 px-1">Sal.</th>
+                    <th class="py-1 px-1">Pasos</th>
+                    <th class="py-1 px-1">Expl.</th>
+                    <th class="py-1 pl-1 text-right">ms</th>
+                  </tr>
+                </thead>
+                <tbody>${rowsHtml}</tbody>
+              </table>
+            </div>
+            <div class="flex items-center justify-between gap-2 pt-1.5 border-t border-white/15 shrink-0">
+              <span class="text-[10px] font-mono-code text-[#b49e98] truncate">
+                ${res.ok_bfs ? `Ruta óptima: ${res.pasos_bfs} pasos` : "Sin ruta"}
+              </span>
+              <button data-inspect-seed="${idx}" class="inspect-seed-card-btn btn-nav px-2.5 py-0.5 rounded text-[10px] font-mono-code uppercase tracking-wider text-[#ff8a65] border-[#ff5b2e]/50 cursor-pointer shrink-0">
+                Ver Mapa Generado
+              </button>
+            </div>
+          `;
+          grid.appendChild(card);
+        });
+
+        document.querySelectorAll(".inspect-seed-card-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            toggleBenchmarkMapInspector(true, Number(btn.dataset.inspectSeed));
+          });
+        });
+
+        if (!document.getElementById("benchmark-map-inspector").classList.contains("hidden")) {
+          renderBenchmarkInspector();
+        }
+      }
+
+      // =====================================================================
+      // EVENT LISTENERS & KEYBOARD SHORTCUTS
+      // =====================================================================
+      function initEvents() {
+        const pySource = document.getElementById("raw-python-source").textContent;
+        document.getElementById("python-source-viewer").textContent = pySource;
+
+        // Top nav buttons
+        document.querySelectorAll(".nav-btn").forEach((btn) => {
+          if (btn.dataset.section) {
+            btn.addEventListener("click", () => navigateTo(btn.dataset.section));
+          }
+        });
+
+        // Algorithm path selector buttons in Solver view
+        document.querySelectorAll(".algo-path-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            selectedSolverAlgo = btn.dataset.algoPath;
+            document.querySelectorAll(".algo-path-btn").forEach((b) => {
+              b.classList.toggle("active", b.dataset.algoPath === selectedSolverAlgo);
+            });
+            runCurrentSolverCase(false);
+          });
+        });
+
+        document.getElementById("btn-rerun-solver").addEventListener("click", () => {
+          runCurrentSolverCase(true);
+        });
+
+        document.getElementById("btn-run-benchmark").addEventListener("click", () => {
+          runBenchmarkView();
+        });
+
+        // Benchmark "Ver Mapa Generado" toggle & sub-controls
+        document.getElementById("btn-open-generated-map").addEventListener("click", () => {
+          const inspectorHidden = document.getElementById("benchmark-map-inspector").classList.contains("hidden");
+          toggleBenchmarkMapInspector(inspectorHidden, activeBenchIdx);
+        });
+
+        document.getElementById("btn-close-generated-map").addEventListener("click", () => {
+          toggleBenchmarkMapInspector(false);
+        });
+
+        document.querySelectorAll(".bench-seed-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            activeBenchIdx = Number(btn.dataset.benchIdx);
+            renderBenchmarkInspector();
+          });
+        });
+
+        document.querySelectorAll(".bench-algo-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            activeBenchAlgo = btn.dataset.benchAlgo;
+            renderBenchmarkInspector();
+          });
+        });
+
+        // Manual grid builder
+        document.getElementById("btn-build-grid").addEventListener("click", () => {
+          const rVal = Math.max(1, Math.min(12, parseInt(document.getElementById("manual-rows").value, 10) || 5));
+          const cVal = Math.max(1, Math.min(12, parseInt(document.getElementById("manual-cols").value, 10) || 5));
+          document.getElementById("manual-rows").value = rVal;
+          document.getElementById("manual-cols").value = cVal;
+
+          const nextMaze = Array.from({ length: rVal }, () => Array.from({ length: cVal }, () => 0));
+          nextMaze[0][0] = "S";
+          if (rVal > 1 || cVal > 1) {
+            nextMaze[rVal - 1][cVal - 1] = "E";
+          }
+          manualMaze = nextMaze;
+          runCurrentSolverCase(false);
+        });
+
+        // Copy Python code button
+        document.getElementById("btn-copy-python").addEventListener("click", () => {
+          const tempArea = document.createElement("textarea");
+          tempArea.value = pySource;
+          tempArea.style.position = "fixed";
+          tempArea.style.opacity = "0";
+          document.body.appendChild(tempArea);
+          tempArea.select();
+          try {
+            document.execCommand("copy");
+          } catch (e) {
+            // ignore
+          }
+          document.body.removeChild(tempArea);
+
+          const fb = document.getElementById("copy-feedback");
+          fb.style.opacity = "1";
+          setTimeout(() => {
+            fb.style.opacity = "0";
+          }, 1600);
+        });
+
+        // Keyboard left/right section navigation
+        window.addEventListener("keydown", (e) => {
+          if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
+          if (e.key === "ArrowRight") {
+            const idx = SECTIONS.indexOf(currentSection);
+            navigateTo(SECTIONS[(idx + 1) % SECTIONS.length]);
+          } else if (e.key === "ArrowLeft") {
+            const idx = SECTIONS.indexOf(currentSection);
+            navigateTo(SECTIONS[(idx - 1 + SECTIONS.length) % SECTIONS.length]);
+          }
+        });
+
+        // Resize redraw for responsive maze boards
+        window.addEventListener("resize", () => {
+          if (["caso1", "caso2", "caso3", "caso5"].includes(currentSection)) {
+            runCurrentSolverCase(false);
+          } else if (currentSection === "caso4" && !document.getElementById("benchmark-map-inspector").classList.contains("hidden")) {
+            renderBenchmarkInspector();
+          }
+        });
+      }
+
+      document.addEventListener("DOMContentLoaded", initEvents);
+    })();
+  </script>
+</body>
+</html>
