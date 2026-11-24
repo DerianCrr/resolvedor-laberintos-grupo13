@@ -5,59 +5,73 @@ import time
 
 DIRECCIONES = [(-1, 0), (1, 0), (0, -1), (0, 1)]
 
-MAPA_NORMAL = [
-    ["S", 0, 0, 0, 0, 0],
-    [0, 1, 0, 1, 1, 0],
-    [0, 0, 0, 1, 0, 0],
-    [0, 0, 0, 0, 0, 1],
-    [1, 1, 0, 1, 0, 0],
-    [0, 0, 0, 1, 0, "E"],
-]
-
 MAPA_LIMITE = [
     ["S", "E"],
 ]
 
-MAPA_SIN_SOLUCION = [
-    ["S", 0, 0, 1, 0],
-    [1, 1, 0, 1, 0],
-    [0, 0, 0, 1, 1],
-    [0, 1, 0, 1, "E"],
-    [0, 0, 0, 1, 1],
-]
+
+def existe_camino_bfs(maze):
+    inicio, fin = buscar_inicio_fin(maze)
+    if inicio is None or fin is None:
+        return False
+
+    filas = len(maze)
+    cols = len(maze[0])
+    cola = deque([inicio])
+    visitado = {inicio}
+
+    while cola:
+        actual = cola.popleft()
+        if actual == fin:
+            return True
+
+        f, c = actual
+        for df, dc in DIRECCIONES:
+            nf, nc = f + df, c + dc
+            if 0 <= nf < filas and 0 <= nc < cols:
+                if maze[nf][nc] != 1 and (nf, nc) not in visitado:
+                    visitado.add((nf, nc))
+                    cola.append((nf, nc))
+
+    return False
 
 
-def generar_laberinto(filas, cols, semilla):
-    random.seed(semilla)
-    maze = []
+def generar_laberinto(filas, cols, semilla=None, con_solucion=True, prob_muro=0.28):
+    if semilla is None:
+        semilla = random.SystemRandom().randint(1, 10**9)
+    rng = random.Random(semilla)
 
-    for f in range(filas):
-        fila = []
-        for c in range(cols):
-            if random.random() < 0.28:
-                fila.append(1)
-            else:
-                fila.append(0)
-        maze.append(fila)
+    while True:
+        maze = [
+            [1 if rng.random() < prob_muro else 0 for _ in range(cols)]
+            for _ in range(filas)
+        ]
 
-    f = 0
-    c = 0
-    maze[0][0] = 0
+        if con_solucion:
+            f, c = 0, 0
+            maze[f][c] = 0
+            while f < filas - 1 or c < cols - 1:
+                if f == filas - 1:
+                    c += 1
+                elif c == cols - 1:
+                    f += 1
+                elif rng.random() < 0.5:
+                    f += 1
+                else:
+                    c += 1
+                maze[f][c] = 0
 
-    while f < filas - 1 or c < cols - 1:
-        if f == filas - 1:
-            c += 1
-        elif c == cols - 1:
-            f += 1
-        elif random.random() < 0.5:
-            f += 1
-        else:
-            c += 1
-        maze[f][c] = 0
+        maze[0][0] = "S"
+        maze[filas - 1][cols - 1] = "E"
 
-    maze[0][0] = "S"
-    maze[filas - 1][cols - 1] = "E"
-    return maze
+        if filas == 1 and cols == 1:
+            return maze, semilla
+
+        tiene_camino = existe_camino_bfs(maze)
+        if con_solucion and tiene_camino:
+            return maze, semilla
+        if not con_solucion and not tiene_camino:
+            return maze, semilla
 
 
 def buscar_inicio_fin(maze):
@@ -131,12 +145,9 @@ def resolver_dfs(maze):
         if actual == fin:
             return True, reconstruir_camino(padre, fin), explorados
 
-        f = actual[0]
-        c = actual[1]
-
+        f, c = actual
         for df, dc in DIRECCIONES:
-            nf = f + df
-            nc = c + dc
+            nf, nc = f + df, c + dc
             if 0 <= nf < filas and 0 <= nc < cols:
                 if maze[nf][nc] != 1 and (nf, nc) not in visitado:
                     visitado.add((nf, nc))
@@ -165,12 +176,9 @@ def resolver_bfs(maze):
         if actual == fin:
             return True, reconstruir_camino(padre, fin), explorados
 
-        f = actual[0]
-        c = actual[1]
-
+        f, c = actual
         for df, dc in DIRECCIONES:
-            nf = f + df
-            nc = c + dc
+            nf, nc = f + df, c + dc
             if 0 <= nf < filas and 0 <= nc < cols:
                 if maze[nf][nc] != 1 and (nf, nc) not in visitado:
                     visitado.add((nf, nc))
@@ -203,12 +211,9 @@ def resolver_dijkstra(maze):
         if actual == fin:
             return True, reconstruir_camino(padre, fin), explorados
 
-        f = actual[0]
-        c = actual[1]
-
+        f, c = actual
         for df, dc in DIRECCIONES:
-            nf = f + df
-            nc = c + dc
+            nf, nc = f + df, c + dc
             if 0 <= nf < filas and 0 <= nc < cols:
                 if maze[nf][nc] != 1 and (nf, nc) not in visitado:
                     nuevo_costo = costo + 1
@@ -247,12 +252,9 @@ def resolver_a_estrella(maze):
         if actual == fin:
             return True, reconstruir_camino(padre, fin), explorados
 
-        f = actual[0]
-        c = actual[1]
-
+        f, c = actual
         for df, dc in DIRECCIONES:
-            nf = f + df
-            nc = c + dc
+            nf, nc = f + df, c + dc
             if 0 <= nf < filas and 0 <= nc < cols:
                 if maze[nf][nc] != 1 and (nf, nc) not in visitado:
                     nuevo_g = g + 1
@@ -414,28 +416,30 @@ def ingresar_laberinto():
 
 while True:
     print("\n=== RESOLVEDOR DE LABERINTOS - GRUPO 13 ===")
-    print("1. Caso normal (6x6)")
-    print("2. Caso limite (1x2)")
-    print("3. Caso sin solucion (5x5)")
-    print("4. Comparativa de rendimiento (10x10, 25x25 y 40x40)")
+    print("1. Caso normal aleatorio con solucion (6x6)")
+    print("2. Caso limite fijo (1x2)")
+    print("3. Caso aleatorio SIN solucion (5x5)")
+    print("4. Comparativa de rendimiento aleatoria con solucion (10x10, 25x25 y 40x40)")
     print("5. Ingresar laberinto manualmente")
     print("0. Salir")
 
     op = input("Opcion: ").strip()
 
     if op == "1":
-        ejecutar_prueba("CASO NORMAL", MAPA_NORMAL, True)
+        mapa_1, seed_1 = generar_laberinto(6, 6, con_solucion=True, prob_muro=0.28)
+        ejecutar_prueba(f"CASO NORMAL (seed {seed_1})", mapa_1, True)
     elif op == "2":
         ejecutar_prueba("CASO LIMITE", MAPA_LIMITE, True)
     elif op == "3":
-        ejecutar_prueba("CASO SIN SOLUCION", MAPA_SIN_SOLUCION, True)
+        mapa_3, seed_3 = generar_laberinto(5, 5, con_solucion=False, prob_muro=0.45)
+        ejecutar_prueba(f"CASO SIN SOLUCION (seed {seed_3})", mapa_3, True)
     elif op == "4":
-        mapa_10 = generar_laberinto(10, 10, 10)
-        mapa_25 = generar_laberinto(25, 25, 20)
-        mapa_40 = generar_laberinto(40, 40, 30)
-        ejecutar_prueba("PEQUENO (seed 10)", mapa_10, False)
-        ejecutar_prueba("MEDIANO (seed 20)", mapa_25, False)
-        ejecutar_prueba("GRANDE (seed 30)", mapa_40, False)
+        mapa_10, seed_10 = generar_laberinto(10, 10, con_solucion=True, prob_muro=0.28)
+        mapa_25, seed_25 = generar_laberinto(25, 25, con_solucion=True, prob_muro=0.28)
+        mapa_40, seed_40 = generar_laberinto(40, 40, con_solucion=True, prob_muro=0.28)
+        ejecutar_prueba(f"PEQUENO (seed {seed_10})", mapa_10, False)
+        ejecutar_prueba(f"MEDIANO (seed {seed_25})", mapa_25, False)
+        ejecutar_prueba(f"GRANDE (seed {seed_40})", mapa_40, False)
     elif op == "5":
         lab = ingresar_laberinto()
         if lab is not None:
