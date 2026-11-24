@@ -1,4 +1,5 @@
 from collections import deque
+import heapq
 import random
 import time
 
@@ -179,6 +180,91 @@ def resolver_bfs(maze):
     return False, [], explorados
 
 
+def resolver_dijkstra(maze):
+    inicio, fin = buscar_inicio_fin(maze)
+    if inicio is None or fin is None:
+        return False, [], 0
+
+    filas = len(maze)
+    cols = len(maze[0])
+    cola = [(0, inicio)]
+    dist = {inicio: 0}
+    visitado = set()
+    padre = {inicio: None}
+    explorados = 0
+
+    while cola:
+        costo, actual = heapq.heappop(cola)
+        if actual in visitado:
+            continue
+        visitado.add(actual)
+        explorados += 1
+
+        if actual == fin:
+            return True, reconstruir_camino(padre, fin), explorados
+
+        f = actual[0]
+        c = actual[1]
+
+        for df, dc in DIRECCIONES:
+            nf = f + df
+            nc = c + dc
+            if 0 <= nf < filas and 0 <= nc < cols:
+                if maze[nf][nc] != 1 and (nf, nc) not in visitado:
+                    nuevo_costo = costo + 1
+                    if nuevo_costo < dist.get((nf, nc), float("inf")):
+                        dist[(nf, nc)] = nuevo_costo
+                        padre[(nf, nc)] = actual
+                        heapq.heappush(cola, (nuevo_costo, (nf, nc)))
+
+    return False, [], explorados
+
+
+def heuristica_manhattan(a, b):
+    return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+
+def resolver_a_estrella(maze):
+    inicio, fin = buscar_inicio_fin(maze)
+    if inicio is None or fin is None:
+        return False, [], 0
+
+    filas = len(maze)
+    cols = len(maze[0])
+    cola = [(heuristica_manhattan(inicio, fin), 0, inicio)]
+    g_costo = {inicio: 0}
+    visitado = set()
+    padre = {inicio: None}
+    explorados = 0
+
+    while cola:
+        _, g, actual = heapq.heappop(cola)
+        if actual in visitado:
+            continue
+        visitado.add(actual)
+        explorados += 1
+
+        if actual == fin:
+            return True, reconstruir_camino(padre, fin), explorados
+
+        f = actual[0]
+        c = actual[1]
+
+        for df, dc in DIRECCIONES:
+            nf = f + df
+            nc = c + dc
+            if 0 <= nf < filas and 0 <= nc < cols:
+                if maze[nf][nc] != 1 and (nf, nc) not in visitado:
+                    nuevo_g = g + 1
+                    if nuevo_g < g_costo.get((nf, nc), float("inf")):
+                        g_costo[(nf, nc)] = nuevo_g
+                        f_costo = nuevo_g + heuristica_manhattan((nf, nc), fin)
+                        padre[(nf, nc)] = actual
+                        heapq.heappush(cola, (f_costo, nuevo_g, (nf, nc)))
+
+    return False, [], explorados
+
+
 def mostrar_laberinto(maze, ruta=None):
     camino = set(ruta) if ruta else set()
 
@@ -234,15 +320,27 @@ def ejecutar_prueba(titulo, maze, mostrar_mapa=True):
     ok_bfs, ruta_bfs, exp_bfs = resolver_bfs(maze)
     t_bfs = (time.perf_counter() - t0) * 1000
 
+    t0 = time.perf_counter()
+    ok_dij, ruta_dij, exp_dij = resolver_dijkstra(maze)
+    t_dij = (time.perf_counter() - t0) * 1000
+
+    t0 = time.perf_counter()
+    ok_ast, ruta_ast, exp_ast = resolver_a_estrella(maze)
+    t_ast = (time.perf_counter() - t0) * 1000
+
     pasos_bt = len(ruta_bt) - 1 if ok_bt else 0
     pasos_dfs = len(ruta_dfs) - 1 if ok_dfs else 0
     pasos_bfs = len(ruta_bfs) - 1 if ok_bfs else 0
+    pasos_dij = len(ruta_dij) - 1 if ok_dij else 0
+    pasos_ast = len(ruta_ast) - 1 if ok_ast else 0
 
     print("\nAlgoritmo     | Salida | Pasos  | Explorados | Tiempo (ms)")
     print("----------------------------------------------------------")
     mostrar_fila("Backtracking", ok_bt, pasos_bt, len(vis_bt), t_bt)
     mostrar_fila("DFS", ok_dfs, pasos_dfs, exp_dfs, t_dfs)
     mostrar_fila("BFS", ok_bfs, pasos_bfs, exp_bfs, t_bfs)
+    mostrar_fila("Dijkstra", ok_dij, pasos_dij, exp_dij, t_dij)
+    mostrar_fila("A*", ok_ast, pasos_ast, exp_ast, t_ast)
 
     if ok_bfs:
         if mostrar_mapa:
